@@ -25,12 +25,10 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: webapp-firebase-api-key
   - variable: GEMINI_API_KEY
-    secret: AIzaSyC6KM9rUfug0AZ1hwwwyU2RuYV0G8kmPx4
-  - variable: NEXT_PUBLIC_GEMINI_API_KEY
-    secret: AIzaSyC6KM9rUfug0AZ1hwwwyU2RuYV0G8kmPx4
+    secret: gemini-api-key
   - variable: DATABASE_URL
-    secret: postgresql://neondb_owner:npg_WNoQ7iAvHKO1@ep-dawn-dew-a1jd5jmj-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&schema=public
+    secret: database-url
   - variable: JWT_SECRET
-    secret: your-super-secret-jwt-key-change-this-in-production
+    secret: jwt-secret
   - variable: NEXT_PUBLIC_API_URL
-    secret: https://gitverse-nextjs--gen-lang-client-0450794546.asia-southeast1.hosted.app/
+    value: https://gitverse-nextjs--gen-lang-client-0450794546.asia-southeast1.hosted.app/
