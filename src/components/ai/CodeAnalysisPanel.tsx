@@ -1,89 +1,96 @@
-import { useState } from 'react'
-import { Code, Bug, Lightbulb, FileText, Loader2, Sparkles } from 'lucide-react'
-import { Card } from '@/components/ui'
-import { geminiService, CodeAnalysisRequest } from '@/services/gemini'
-import { useToast } from '@/hooks/use-toast'
+import { useState } from "react";
+import {
+  Code,
+  Bug,
+  Lightbulb,
+  FileText,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
+import { Card } from "@/components/ui";
+import { geminiService, CodeAnalysisRequest } from "@/services/gemini";
+import { useToast } from "@/hooks/use-toast";
 
-type AnalysisType = 'explain' | 'bugs' | 'improve' | 'document'
+type AnalysisType = "explain" | "bugs" | "improve" | "document";
 
 interface AnalysisResult {
-  type: AnalysisType
-  result: string
-  timestamp: Date
+  type: AnalysisType;
+  result: string;
+  timestamp: Date;
 }
 
 export function CodeAnalysisPanel() {
-  const [code, setCode] = useState('')
-  const [language, setLanguage] = useState('typescript')
-  const [analysisType, setAnalysisType] = useState<AnalysisType>('explain')
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [results, setResults] = useState<AnalysisResult[]>([])
-  const { toast } = useToast()
+  const [code, setCode] = useState("");
+  const [language, setLanguage] = useState("typescript");
+  const [analysisType, setAnalysisType] = useState<AnalysisType>("explain");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [results, setResults] = useState<AnalysisResult[]>([]);
+  const { toast } = useToast();
 
   const analysisOptions = [
     {
-      type: 'explain' as AnalysisType,
-      label: 'Explain Code',
+      type: "explain" as AnalysisType,
+      label: "Explain Code",
       icon: Code,
-      description: 'Get a detailed explanation of what the code does',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10',
+      description: "Get a detailed explanation of what the code does",
+      color: "text-blue-500",
+      bgColor: "bg-blue-500/10",
     },
     {
-      type: 'bugs' as AnalysisType,
-      label: 'Find Bugs',
+      type: "bugs" as AnalysisType,
+      label: "Find Bugs",
       icon: Bug,
-      description: 'Detect potential bugs and issues',
-      color: 'text-red-500',
-      bgColor: 'bg-red-500/10',
+      description: "Detect potential bugs and issues",
+      color: "text-red-500",
+      bgColor: "bg-red-500/10",
     },
     {
-      type: 'improve' as AnalysisType,
-      label: 'Suggest Improvements',
+      type: "improve" as AnalysisType,
+      label: "Suggest Improvements",
       icon: Lightbulb,
-      description: 'Get suggestions for better code quality',
-      color: 'text-yellow-500',
-      bgColor: 'bg-yellow-500/10',
+      description: "Get suggestions for better code quality",
+      color: "text-yellow-500",
+      bgColor: "bg-yellow-500/10",
     },
     {
-      type: 'document' as AnalysisType,
-      label: 'Generate Docs',
+      type: "document" as AnalysisType,
+      label: "Generate Docs",
       icon: FileText,
-      description: 'Create documentation for your code',
-      color: 'text-green-500',
-      bgColor: 'bg-green-500/10',
+      description: "Create documentation for your code",
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
     },
-  ]
+  ];
 
   const handleAnalyze = async () => {
     if (!code.trim()) {
       toast({
-        title: 'No Code Provided',
-        description: 'Please enter some code to analyze',
-        variant: 'destructive',
-      })
-      return
+        title: "No Code Provided",
+        description: "Please enter some code to analyze",
+        variant: "destructive",
+      });
+      return;
     }
 
     if (!geminiService.isConfigured()) {
       toast({
-        title: 'API Key Missing',
-        description: 'Please configure VITE_GEMINI_API_KEY in your .env file',
-        variant: 'destructive',
-      })
-      return
+        title: 'Login required',
+        description: 'Please log in to use AI features.',
+        variant: "destructive",
+      });
+      return;
     }
 
-    setIsAnalyzing(true)
+    setIsAnalyzing(true);
 
     try {
       const request: CodeAnalysisRequest = {
         code,
         language,
         analysisType,
-      }
+      };
 
-      const result = await geminiService.analyzeCode(request)
+      const result = await geminiService.analyzeCode(request);
 
       setResults((prev) => [
         {
@@ -92,42 +99,45 @@ export function CodeAnalysisPanel() {
           timestamp: new Date(),
         },
         ...prev,
-      ])
+      ]);
 
       toast({
-        title: 'Analysis Complete',
-        description: 'Your code has been analyzed successfully',
-      })
+        title: "Analysis Complete",
+        description: "Your code has been analyzed successfully",
+      });
     } catch (error) {
-      console.error('Analysis error:', error)
+      console.error("Analysis error:", error);
       toast({
-        title: 'Analysis Failed',
-        description: error instanceof Error ? error.message : 'Failed to analyze code',
-        variant: 'destructive',
-      })
+        title: "Analysis Failed",
+        description:
+          error instanceof Error ? error.message : "Failed to analyze code",
+        variant: "destructive",
+      });
     } finally {
-      setIsAnalyzing(false)
+      setIsAnalyzing(false);
     }
-  }
+  };
 
   const formatResult = (content: string) => {
-    return content.split('\n').map((line, i) => {
+    return content.split("\n").map((line, i) => {
       // Code blocks
-      if (line.startsWith('```')) {
+      if (line.startsWith("```")) {
         return (
           <div key={i} className="text-xs text-primary my-2">
             ───────
           </div>
-        )
+        );
       }
       // Bold text
-      if (line.includes('**')) {
-        const parts = line.split('**')
+      if (line.includes("**")) {
+        const parts = line.split("**");
         return (
           <p key={i} className="mb-2">
-            {parts.map((part, j) => (j % 2 === 0 ? part : <strong key={j}>{part}</strong>))}
+            {parts.map((part, j) =>
+              j % 2 === 0 ? part : <strong key={j}>{part}</strong>
+            )}
           </p>
-        )
+        );
       }
       // Numbered lists
       if (/^\d+\./.test(line.trim())) {
@@ -135,35 +145,38 @@ export function CodeAnalysisPanel() {
           <li key={i} className="ml-4 mb-1 list-decimal">
             {line
               .trim()
-              .substring(line.indexOf('.') + 1)
+              .substring(line.indexOf(".") + 1)
               .trim()}
           </li>
-        )
+        );
       }
       // Bullet points
-      if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
+      if (line.trim().startsWith("-") || line.trim().startsWith("•")) {
         return (
           <li key={i} className="ml-4 mb-1 list-disc">
             {line.trim().substring(1).trim()}
           </li>
-        )
+        );
       }
       // Code inline
-      if (line.includes('`')) {
-        const parts = line.split('`')
+      if (line.includes("`")) {
+        const parts = line.split("`");
         return (
           <p key={i} className="mb-2">
             {parts.map((part, j) =>
               j % 2 === 0 ? (
                 part
               ) : (
-                <code key={j} className="bg-primary/10 px-1 py-0.5 rounded text-sm font-mono">
+                <code
+                  key={j}
+                  className="bg-primary/10 px-1 py-0.5 rounded text-sm font-mono"
+                >
                   {part}
                 </code>
               )
             )}
           </p>
-        )
+        );
       }
       return line.trim() ? (
         <p key={i} className="mb-2">
@@ -171,11 +184,13 @@ export function CodeAnalysisPanel() {
         </p>
       ) : (
         <br key={i} />
-      )
-    })
-  }
+      );
+    });
+  };
 
-  const selectedOption = analysisOptions.find((opt) => opt.type === analysisType)!
+  const selectedOption = analysisOptions.find(
+    (opt) => opt.type === analysisType
+  )!;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -190,7 +205,9 @@ export function CodeAnalysisPanel() {
           <div className="space-y-4">
             {/* Language selector */}
             <div>
-              <label className="block text-sm font-medium mb-2">Programming Language</label>
+              <label className="block text-sm font-medium mb-2">
+                Programming Language
+              </label>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
@@ -209,7 +226,9 @@ export function CodeAnalysisPanel() {
 
             {/* Code input */}
             <div>
-              <label className="block text-sm font-medium mb-2">Your Code</label>
+              <label className="block text-sm font-medium mb-2">
+                Your Code
+              </label>
               <textarea
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
@@ -220,7 +239,9 @@ export function CodeAnalysisPanel() {
 
             {/* Analysis type selector */}
             <div>
-              <label className="block text-sm font-medium mb-2">Analysis Type</label>
+              <label className="block text-sm font-medium mb-2">
+                Analysis Type
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 {analysisOptions.map((option) => (
                   <button
@@ -229,7 +250,7 @@ export function CodeAnalysisPanel() {
                     className={`p-3 rounded-lg border-2 transition-all duration-300 text-left ${
                       analysisType === option.type
                         ? `${option.bgColor} border-current ${option.color}`
-                        : 'glass border-white/10 hover:border-white/20'
+                        : "glass border-white/10 hover:border-white/20"
                     }`}
                   >
                     <option.icon className={`h-5 w-5 mb-2 ${option.color}`} />
@@ -252,7 +273,9 @@ export function CodeAnalysisPanel() {
                 </>
               ) : (
                 <>
-                  <selectedOption.icon className={`h-5 w-5 ${selectedOption.color}`} />
+                  <selectedOption.icon
+                    className={`h-5 w-5 ${selectedOption.color}`}
+                  />
                   {selectedOption.label}
                 </>
               )}
@@ -278,17 +301,23 @@ export function CodeAnalysisPanel() {
             <div className="text-center py-12 text-muted-foreground">
               <Code className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No analysis yet</p>
-              <p className="text-sm mt-2">Enter your code and click analyze to get started</p>
+              <p className="text-sm mt-2">
+                Enter your code and click analyze to get started
+              </p>
             </div>
           ) : (
             <div className="space-y-4 max-h-[600px] overflow-y-auto">
               {results.map((result, index) => {
-                const option = analysisOptions.find((opt) => opt.type === result.type)!
+                const option = analysisOptions.find(
+                  (opt) => opt.type === result.type
+                )!;
                 return (
                   <Card key={index} className="glass p-4 bg-white/5">
                     <div className="flex items-center gap-2 mb-3">
                       <option.icon className={`h-4 w-4 ${option.color}`} />
-                      <span className="font-semibold text-sm">{option.label}</span>
+                      <span className="font-semibold text-sm">
+                        {option.label}
+                      </span>
                       <span className="text-xs text-muted-foreground ml-auto">
                         {result.timestamp.toLocaleTimeString()}
                       </span>
@@ -297,12 +326,12 @@ export function CodeAnalysisPanel() {
                       {formatResult(result.result)}
                     </div>
                   </Card>
-                )
+                );
               })}
             </div>
           )}
         </Card>
       </div>
     </div>
-  )
+  );
 }

@@ -26,9 +26,15 @@ class GeminiService {
 
   constructor() {}
 
+  private getAuthHeaders(): Record<string, string> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("gitverse_token") : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
   isConfigured(): boolean {
-    // Configuration is handled server-side via `/api/ai/*` routes.
-    return true;
+    // AI endpoints require authentication; the API key is server-side.
+    const token = typeof window !== "undefined" ? localStorage.getItem("gitverse_token") : null;
+    return !!token;
   }
 
   async chat(message: string, context?: RepositoryContext): Promise<string> {
@@ -50,7 +56,10 @@ User Question: ${message}
 
       const res = await fetch("/api/ai/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getAuthHeaders(),
+        },
         body: JSON.stringify({ prompt: enhancedMessage }),
       });
 
@@ -97,7 +106,10 @@ User Question: ${message}
     try {
       const res = await fetch("/api/ai/analyze-code", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getAuthHeaders(),
+        },
         body: JSON.stringify(request),
       });
 

@@ -77,7 +77,7 @@ All components copied and adapted:
 #### Issue 1: Vite → Next.js Environment Variables
 
 - **Before**: `import.meta.env.VITE_API_URL`, `import.meta.env.VITE_GEMINI_API_KEY`
-- **After**: `process.env.NEXT_PUBLIC_API_URL`, `process.env.NEXT_PUBLIC_GEMINI_API_KEY`
+- **After**: `process.env.NEXT_PUBLIC_API_URL`, `process.env.GEMINI_API_KEY`
 - **Files Fixed**: 9 files (Dashboard, SearchPage, Settings, RepositoryAnalysis, gemini.ts, apiConfig.ts, AuthContext)
 
 #### Issue 2: React Router → Next.js Router

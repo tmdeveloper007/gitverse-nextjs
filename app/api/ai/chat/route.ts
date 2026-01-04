@@ -57,6 +57,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ response, question });
   } catch (error: any) {
     console.error("AI chat error:", error);
+
+    if (error?.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     return NextResponse.json(
       { error: "Failed to process chat", details: error.message },
       { status: 500 }
