@@ -1,0 +1,26 @@
+name: Run Analysis Cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # every 5 minutes (GitHub Actions minimum)
+  workflow_dispatch:
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger analysis runner endpoint
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+          ANALYSIS_RUNNER_SECRET: ${{ secrets.ANALYSIS_RUNNER_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "Triggering analysis runner at $PRODUCTION_URL/api/internal/run-analysis"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$PRODUCTION_URL/api/internal/run-analysis" \
+            -H "x-analysis-runner-secret: $ANALYSIS_RUNNER_SECRET" \
+            -H "Content-Type: application/json")
+          echo "Response code: $STATUS"
+          if [ "$STATUS" -ge 400 ]; then
+            echo "Runner returned error code $STATUS"
+            exit 1
+          fi
