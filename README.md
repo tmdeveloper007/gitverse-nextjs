@@ -269,6 +269,91 @@ OAuth (Google / NextAuth):
 Optional:
 
 - `NEXT_PUBLIC_API_URL` - API URL for client-side (defaults to current domain)
+  
+## ✅ Vercel Deployment Checklist
+
+Before deploying GitVerse to Vercel, make sure all required environment variables are added correctly in the Vercel dashboard.
+
+You can add them from:
+
+Settings → Environment Variables
+
+### Required Environment Variables
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL database connection string |
+| `JWT_SECRET` | Secret used for JWT signing |
+| `GEMINI_API_KEY` | Google Gemini API key |
+| `NEXTAUTH_URL` | Your deployed application URL |
+| `NEXTAUTH_SECRET` | Secret used by NextAuth |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+
+## ⚠️ Common Deployment Issues
+
+### Missing Environment Variables
+
+If the app fails during build or authentication does not work properly:
+
+- Check whether all required variables are added
+- Make sure variable names are spelled correctly
+- Avoid adding extra spaces or quotes
+
+### Environment Variables Not Updating
+
+Sometimes Vercel continues using older values after changes.
+
+Try redeploying the project manually after updating environment variables.
+
+### `NEXT_PUBLIC_` Variables
+
+Only variables starting with `NEXT_PUBLIC_` are available on the client side.
+
+Example:
+
+```env
+NEXT_PUBLIC_API_URL=https://your-domain.vercel.app
+```
+
+### OAuth Redirect Errors
+
+Make sure the Google OAuth redirect URL matches:
+
+```text
+https://your-domain.vercel.app/api/auth/callback/google
+```
+
+Also verify that `NEXTAUTH_URL` matches your deployed domain.
+
+### Database Connection Issues
+
+If Prisma cannot connect to the database:
+
+- Verify the `DATABASE_URL`
+- Ensure the database accepts external connections
+- Run migrations before deployment if needed
+
+### Build Failures on Vercel
+
+Before pushing changes, test the build locally:
+
+```bash
+npm run prisma:generate
+npm run build
+```
+
+## ✅ Recommended Deployment Steps
+
+1. Push the project to GitHub
+2. Import the repository into Vercel
+3. Add all required environment variables
+4. Redeploy after updating variables
+5. Test authentication and API routes after deployment
+
+
+
+
 
 ## 🤝 Contributing
 
@@ -290,6 +375,6 @@ This project is licensed under the MIT License.
 - NeonDB for serverless PostgreSQL
 - All contributors and users of GitVerse
 
----
+
 
 Made with ❤️ by the GitVerse Team
