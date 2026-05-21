@@ -75,6 +75,7 @@ model GitHubRepo {
   @@unique([userId, repoFullName])
   @@index([installationId])
   @@index([enabled])
+  @@index([repoFullName, enabled])
   @@map("github_repos")
 }
 
