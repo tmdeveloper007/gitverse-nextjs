@@ -1,5 +1,7 @@
-import { cn } from "@/utils/cn";
-
+// simple classnames helper to avoid depending on '@/utils/helpers'
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 function Skeleton({
   className,
   ...props
