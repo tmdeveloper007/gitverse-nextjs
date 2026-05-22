@@ -18,7 +18,15 @@ export default function AnalysisJobPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!params?.jobId) return;
+    if (!params?.jobId) {
+      setLoading(false); // don't leave skeleton stuck forever
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setData(null);
+    setError(null);
 
     const token = localStorage.getItem("gitverse_token");
 
@@ -29,14 +37,32 @@ export default function AnalysisJobPage() {
     })
       .then(async (res) => {
         if (!res.ok) {
-          const errData = await res.json().catch(() => null);
-          throw new Error(errData?.error || "Failed to load analysis");
+          await res.json().catch(() => null);
+          // Fix 2 applied here — sanitized message, not raw API error
+          const status = res.status;
+          if (status === 401 || status === 403) {
+            throw new Error("You do not have permission to view this analysis.");
+          }
+          if (status === 404) {
+            throw new Error("This analysis could not be found.");
+          }
+          throw new Error("Failed to load analysis. Please try again.");
         }
         return res.json();
       })
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .then((result) => {
+        if (!cancelled) setData(result);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true; // cancel stale responses on cleanup
+    };
   }, [params?.jobId]);
 
   if (loading) return <AnalysisDetailSkeleton />;
