@@ -769,12 +769,20 @@ export class RepositoryService {
       throw new Error("Repository not found");
     }
 
-    // Delete related analysis jobs and the repository in a transaction
-    // to ensure no orphaned rows remain if the process is interrupted.
     await prisma.$transaction([
+      // Explicitly delete file changes linked to commits of this repository
+      prisma.fileChange.deleteMany({
+        where: { commit: { repositoryId: id } },
+      }),
+      // Explicitly delete commits to prevent orphaned relational data
+      prisma.commit.deleteMany({
+        where: { repositoryId: id },
+      }),
+      // Explicitly delete analysis jobs
       prisma.analysisJob.deleteMany({
         where: { repositoryId: id },
       }),
+      // Repository deletion handles the rest via Cascade
       prisma.repository.delete({
         where: { id },
       }),
