@@ -100,15 +100,12 @@ export async function POST(request: NextRequest) {
     const repoFullName = `${owner}/${repo}`;
 
     // Gate by DB selection: only auto-review repos that users explicitly enabled.
-    // Verify the installation belongs to a registered user to enforce ownership.
+    // Verify the installation strictly matches the authenticated webhook payload to enforce ownership.
     const enabledRepo = await prisma.gitHubRepo.findFirst({
       where: {
         repoFullName,
         enabled: true,
-        OR: [
-          { installationId: BigInt(installationId) },
-          { installationId: null },
-        ],
+        installationId: BigInt(installationId),
       },
       orderBy: [{ updatedAt: "desc" }],
     });
@@ -116,16 +113,6 @@ export async function POST(request: NextRequest) {
     if (!enabledRepo) {
       return noStoreResponse({ ok: true, ignored: true, reason: "repo_not_enabled" });
     }
-
-    // Backfill installationId for future lookups.
-    await prisma.gitHubRepo.updateMany({
-      where: {
-        repoFullName,
-        enabled: true,
-        installationId: null,
-      },
-      data: { installationId: BigInt(installationId) },
-    });
 
     const app = new GitHubAppService();
     const installationToken =
