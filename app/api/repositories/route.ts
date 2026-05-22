@@ -39,14 +39,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (typeof name !== "string" || !name.trim()) {
+    if (typeof name !== "string") {
       return NextResponse.json(
         { error: "Repository name must be a non-empty string" },
         { status: 400 }
       );
     }
 
-    if (name.length > 100) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return NextResponse.json(
+        { error: "Repository name must be a non-empty string" },
+        { status: 400 }
+      );
+    }
+
+    if (trimmedName.length > 100) {
       return NextResponse.json(
         { error: "Repository name must be 100 characters or less" },
         { status: 400 }
@@ -60,14 +68,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (typeof url !== "string" || !url.trim()) {
+    if (typeof url !== "string") {
       return NextResponse.json(
         { error: "Repository URL must be a non-empty string" },
         { status: 400 }
       );
     }
 
-    if (url.length > 2000) {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      return NextResponse.json(
+        { error: "Repository URL must be a non-empty string" },
+        { status: 400 }
+      );
+    }
+
+    if (trimmedUrl.length > 2000) {
       return NextResponse.json(
         { error: "Repository URL must be 2000 characters or less" },
         { status: 400 }
@@ -75,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const parsedUrl = new URL(url);
+      const parsedUrl = new URL(trimmedUrl);
       if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
         return NextResponse.json(
           { error: "Repository URL must use HTTP or HTTPS protocol" },
@@ -89,6 +105,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let trimmedDescription: string | undefined = undefined;
     if (description !== undefined && description !== null) {
       if (typeof description !== "string") {
         return NextResponse.json(
@@ -96,7 +113,8 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      if (description.length > 1000) {
+      trimmedDescription = description.trim();
+      if (trimmedDescription.length > 1000) {
         return NextResponse.json(
           { error: "Repository description must be 1000 characters or less" },
           { status: 400 }
@@ -105,9 +123,9 @@ export async function POST(request: NextRequest) {
     }
 
     const repository = await repositoryService.createRepository({
-      name: name.trim(),
-      url: url.trim(),
-      description: description?.trim() || undefined,
+      name: trimmedName,
+      url: trimmedUrl,
+      description: trimmedDescription || undefined,
       userId: user.userId,
     });
 
