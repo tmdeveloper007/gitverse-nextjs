@@ -55,7 +55,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ message: "Account deleted" });
   } catch (error: any) {
-    console.error("Error deleting account:", sanitizeErrorMessage(error));
+    console.error("Error deleting account:", error instanceof Error ? error.message : "Unknown error");
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }

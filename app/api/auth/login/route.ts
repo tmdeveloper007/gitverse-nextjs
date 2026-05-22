@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       token,
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Login error:", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json(
       { error: "An unexpected error occurred" },
       { status: 500 }

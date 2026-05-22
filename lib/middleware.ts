@@ -43,13 +43,51 @@ export async function getAuthUser(
   }
 }
 
-export async function middleware(request: NextRequest) {
+export interface AuthenticatedRequest {
+  user: JWTPayload;
+}
+
+export async function getAuthUser(
+  request: NextRequest
+): Promise<JWTPayload | null> {
   try {
-    // Step 1: Get the logged-in user's session token
+    const authHeader = request.headers.get("authorization");
+
+    // 1) Existing JWT auth (Authorization: Bearer ...)
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7).trim();
+      if (token) {
+        const payload = verifyToken(token);
+        if (payload && typeof payload.userId === "number" && payload.userId > 0) {
+          return payload;
+        }
+      }
+    }
+
+    // 2) NextAuth session cookie (Google OAuth)
     const token = await getToken({
       req: request,
       secret: process.env.NEXTAUTH_SECRET,
     });
+    
+    if (!token?.sub || !token.email) return null;
+
+    const userId = Number(token.sub);
+    if (!Number.isFinite(userId) || userId <= 0) return null;
+
+    return { userId, email: token.email };
+  } catch (error) {
+    // Safely return null on any error without logging sensitive information
+    return null;
+  }
+}
+
+export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
+  const user = await getAuthUser(request);
+
+  if (!user || !user.userId) {
+    throw new HttpError(401, "Unauthorized");
+  }
 
     // Step 2: If no token, user is not logged in → redirect to login
     if (!token) {
