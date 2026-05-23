@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, JWTPayload } from "./auth";
+import { verifyToken } from "./auth";
+import type { JWTPayload } from "./auth";
+import prisma from "@/lib/prisma";
 import { getToken } from "next-auth/jwt";
 
 export interface AuthenticatedRequest {
@@ -13,10 +15,24 @@ export async function getAuthUser(
 
   // 1) Existing JWT auth (Authorization: Bearer ...)
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.substring(7);
-    const payload = verifyToken(token);
-    if (payload) return payload;
+const token = authHeader.substring(7);
+const payload = verifyToken(token);
+
+if (payload) {
+  const dbUser = await prisma.user.findUnique({ where: { id: payload.userId } });
+
+  const passwordChangedAt = (dbUser as any)?.passwordChangedAt as Date | undefined;
+
+  if (
+    passwordChangedAt &&
+    (payload as any).iat &&
+    (payload as any).iat * 1000 < passwordChangedAt.getTime()
+  ) {
+    return null;
   }
+
+  return payload;
+}  }
 
   // 2) NextAuth session cookie (Google OAuth)
   try {

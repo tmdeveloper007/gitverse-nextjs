@@ -35,6 +35,7 @@ model User {
   weeklyDigest          Boolean      @default(true) @map("weekly_digest")
   createdAt             DateTime     @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
+  passwordChangedAt     DateTime?    @map("password_changed_at")
   repositories          Repository[]
   analysisJobs          AnalysisJob[]
   accounts              Account[]
@@ -345,5 +346,5 @@ model Language {
   @@index([repositoryId])
   
   @@map("languages")
-  @@index([repositoryId])
+  // @@index([repositoryId])
 }
