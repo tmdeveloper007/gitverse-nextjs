@@ -607,6 +607,16 @@ export class RepositoryService {
 
     return { success: true };
   }
+  //Explicitly set the status of a repository
+  async setRepositoryStatus(
+    repositoryId: number,
+    status: "pending" | "analyzing" | "completed" | "failed",
+  ): Promise<void> {
+    await prisma.repository.update({
+      where: { id: repositoryId },
+      data: { status },
+    });
+  }
 
   /**
    * Get repository statistics
