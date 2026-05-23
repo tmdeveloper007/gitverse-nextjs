@@ -56,7 +56,11 @@ return (
   </ThemeContext.Provider>
 )
 
-  
+  if (!mounted) {
+    return null
+  }
+
+  return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>
 }
 
 export const useTheme = (): ThemeContextType => {
