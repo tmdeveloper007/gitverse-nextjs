@@ -177,7 +177,7 @@ export class RepositoryService {
       }
     };
 
-    await report({ progressPercent: 1, progressMessage: "Starting" });
+    await report({ progressPercent: 1, progressMessage: "Starting analysis..." });
 
     // Create temporary directory for cloning
     const tempDir = path.join(
@@ -193,12 +193,12 @@ export class RepositoryService {
       console.log(`Cloning repository ${repository.url} to ${tempDir}`);
       await report({
         progressPercent: 5,
-        progressMessage: "Cloning repository",
+        progressMessage: "Cloning repository...",
       });
       gitService = await GitService.cloneRepository(repository.url, tempDir);
 
       // Capture README / size / branches in parallel; these are independent once cloned.
-      await report({ progressPercent: 8, progressMessage: "Reading README" });
+      await report({ progressPercent: 8, progressMessage: "Reading README..." });
       const readmePromise = this.tryReadmeFromRepoPath(tempDir);
       const sizePromise = gitService.getRepositorySize();
       const branchesPromise = gitService.getBranches();
@@ -216,7 +216,7 @@ export class RepositoryService {
       // Get repository size and branches.
       await report({
         progressPercent: 10,
-        progressMessage: "Calculating size",
+        progressMessage: "Calculating repository size...",
       });
       const [size, branches] = await Promise.all([
         sizePromise,
@@ -227,7 +227,7 @@ export class RepositoryService {
       console.log(`Analyzing branches for repository ${repositoryId}`);
       await report({
         progressPercent: 15,
-        progressMessage: "Analyzing branches",
+        progressMessage: "Analyzing branches...",
       });
       const defaultBranch = branches.find((b) => b.isDefault)?.name || "main";
 
@@ -247,7 +247,7 @@ export class RepositoryService {
       console.log(`Analyzing commits for repository ${repositoryId}`);
       await report({
         progressPercent: 25,
-        progressMessage: "Reading commit history",
+        progressMessage: "Fetching commit history...",
       });
       const commits = await gitService.getCommits("--all", 1000);
       console.log(`Total commits fetched from git: ${commits.length}`);
@@ -363,7 +363,7 @@ export class RepositoryService {
           const pct = 25 + Math.round((Math.min(i + chunk.length, newCommits.length) / totalNewCommits) * 35);
           await report({
             progressPercent: Math.min(60, pct),
-            progressMessage: `Storing commits (${Math.min(i + chunk.length, newCommits.length)}/${newCommits.length})`,
+            progressMessage: `Processing commits (${Math.min(i + chunk.length, newCommits.length)}/${newCommits.length})...`,
           });
         } catch (error: any) {
           failedCount += chunk.length;
@@ -375,7 +375,7 @@ export class RepositoryService {
 
       // Analyze files
       console.log(`Analyzing file tree for repository ${repositoryId}`);
-      await report({ progressPercent: 65, progressMessage: "Scanning files" });
+      await report({ progressPercent: 65, progressMessage: "Scanning file structure..." });
       const files = await gitService.getFileTree();
 
       // Avoid querying existing file paths (can be huge). Just rely on
@@ -401,7 +401,7 @@ export class RepositoryService {
           await report({
             progressPercent:
               65 + Math.round((insertedSoFar / files.length) * 10),
-            progressMessage: `Storing files (${insertedSoFar}/${files.length})`,
+            progressMessage: `Indexing files (${insertedSoFar}/${files.length})...`,
           });
         }
         console.log(
@@ -415,14 +415,14 @@ export class RepositoryService {
       console.log(`Analyzing contributors for repository ${repositoryId}`);
       await report({
         progressPercent: 80,
-        progressMessage: "Analyzing contributors",
+        progressMessage: "Analyzing contributor activity...",
       });
       const contributorsPromise = gitService.getContributors();
 
       console.log(`Detecting languages for repository ${repositoryId}`);
       await report({
         progressPercent: 90,
-        progressMessage: "Detecting languages",
+        progressMessage: "Detecting programming languages...",
       });
       const languagesPromise = gitService.detectLanguages();
 
@@ -524,7 +524,7 @@ export class RepositoryService {
         },
       });
 
-      await report({ progressPercent: 100, progressMessage: "Completed" });
+      await report({ progressPercent: 100, progressMessage: "Analysis complete! ✓" });
 
       console.log(`Repository ${repositoryId} analysis completed`);
     } catch (error: any) {
@@ -533,7 +533,7 @@ export class RepositoryService {
         where: { id: repositoryId },
         data: { status: "failed" },
       });
-      await report({ progressMessage: "Failed" });
+      await report({ progressMessage: "Analysis failed. Please try again." });
       throw error;
     } finally {
       // Cleanup cloned repository

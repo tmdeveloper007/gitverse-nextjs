@@ -18,22 +18,49 @@ function computeBackoffMs(attempt: number): number {
 
 export class AnalysisJobService {
   async createRepositoryAnalysisJob(params: {
-    repositoryId: number;
-    userId: number;
-    maxAttempts?: number;
-  }): Promise<AnalysisJob> {
-    return prisma.analysisJob.create({
+  repositoryId: number;
+  userId: number;
+  maxAttempts?: number;
+}): Promise<AnalysisJob> {
+  try {
+    return await prisma.analysisJob.create({
       data: {
         repositoryId: params.repositoryId,
         userId: params.userId,
         type: "repository_analysis",
         status: "QUEUED",
         progressPercent: 0,
-        progressMessage: "Queued",
+        progressMessage: "Queued — waiting to start...",
         maxAttempts: params.maxAttempts ?? 3,
       },
     });
+  } catch (error: any) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const existingJob = await prisma.analysisJob.findFirst({
+        where: {
+          repositoryId: params.repositoryId,
+          status: { in: ["QUEUED", "PROCESSING"] },
+        },
+      });
+      if (existingJob) return existingJob;
+      return await prisma.analysisJob.create({
+        data: {
+          repositoryId: params.repositoryId,
+          userId: params.userId,
+          type: "repository_analysis",
+          status: "QUEUED",
+          progressPercent: 0,
+          progressMessage: "Queued — waiting to start...",
+          maxAttempts: params.maxAttempts ?? 3,
+        },
+      });
+    }
+    throw error;
   }
+}
 
   async getJob(params: {
     jobId: string;
@@ -78,7 +105,7 @@ export class AnalysisJobService {
       data: {
         status: "DONE",
         progressPercent: 100,
-        progressMessage: "Done",
+        progressMessage: "Analysis complete! ✓",
         finishedAt: new Date(),
         error: null,
         lockedAt: null,
@@ -134,7 +161,7 @@ export class AnalysisJobService {
       data: {
         status: "FAILED",
         finishedAt: new Date(),
-        progressMessage: "Failed",
+        progressMessage: "Analysis failed. Please try again.",
         error: params.error,
         lockedAt: null,
         lockedBy: null,
@@ -177,7 +204,7 @@ export class AnalysisJobService {
         attempts = j.attempts + 1,
         started_at = COALESCE(j.started_at, NOW()),
         updated_at = NOW(),
-        progress_message = COALESCE(j.progress_message, 'Processing'),
+        progress_message = COALESCE(j.progress_message, 'Analysis in progress...'),
         progress_percent = COALESCE(j.progress_percent, 0)
       FROM candidate
       WHERE j.id = candidate.id
