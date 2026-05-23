@@ -25,6 +25,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState("profile");
   const [isLoading, setIsLoading] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const didInitProfileForm = useRef(false);
@@ -278,11 +280,10 @@ export default function Settings() {
 
   const handleDeleteAccount = async () => {
     if (isDeletingAccount) return;
+    if (deleteConfirmText !== "DELETE") return;
 
-    const confirmed = window.confirm(
-      "Delete your account? This permanently deletes your data and cannot be undone."
-    );
-    if (!confirmed) return;
+    setShowDeleteModal(false);
+    setIsDeletingAccount(true);
 
     setIsDeletingAccount(true);
     try {
@@ -299,7 +300,7 @@ export default function Settings() {
         description: "Your account has been deleted successfully.",
       });
 
-      window.location.href = "/signup";
+      window.location.href = "/account-deleted";
     } catch (error: any) {
       console.error("Error deleting account:", error);
       toast({
@@ -579,6 +580,49 @@ export default function Settings() {
             )}
 
             {/* Danger Zone Tab */}
+            {/* Delete Account Confirmation Modal */}
+{showDeleteModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 space-y-4">
+      <h2 className="text-lg font-semibold text-destructive flex items-center gap-2">
+        <Trash2 className="h-5 w-5" />
+        Delete Account
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        This action is <strong>permanent</strong> and cannot be undone. All your repositories, analysis data, and integrations will be deleted.
+      </p>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">
+          Type <strong>DELETE</strong> to confirm:
+        </label>
+        <Input
+          value={deleteConfirmText}
+          onChange={(e) => setDeleteConfirmText(e.target.value)}
+          placeholder="DELETE"
+          className="border-destructive/50"
+        />
+      </div>
+      <div className="flex gap-3 justify-end">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setShowDeleteModal(false);
+            setDeleteConfirmText("");
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={handleDeleteAccount}
+          disabled={deleteConfirmText !== "DELETE" || isDeletingAccount}
+        >
+          {isDeletingAccount ? "Deleting..." : "Delete Account"}
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
             {activeTab === "danger" && (
               <Card className="glass border-destructive/50">
                 <CardHeader>
@@ -599,7 +643,7 @@ export default function Settings() {
                     </p>
                     <Button
                       variant="destructive"
-                      onClick={handleDeleteAccount}
+                      onClick={() => setShowDeleteModal(true)}
                       disabled={isDeletingAccount}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
