@@ -15,6 +15,7 @@ import {
   Button,
   Input,
   toast,
+  Modal,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildApiUrl } from "@/services/apiConfig";
@@ -25,6 +26,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState("profile");
   const [isLoading, setIsLoading] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const didInitProfileForm = useRef(false);
@@ -282,13 +284,12 @@ export default function Settings() {
 });
   };
 
-  const handleDeleteAccount = async () => {
-    if (isDeletingAccount) return;
+  const handleDeleteAccount = () => {
+    setShowDeleteModal(true);
+  };
 
-    const confirmed = window.confirm(
-      "Delete your account? This permanently deletes your data and cannot be undone."
-    );
-    if (!confirmed) return;
+  const confirmDeleteAccount = async () => {
+    if (isDeletingAccount) return;
 
     setIsDeletingAccount(true);
     try {
@@ -618,6 +619,37 @@ export default function Settings() {
           </div>
         </div>
       </div>
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Account"
+        size="sm"
+      >
+        <p className="text-muted-foreground mb-6">
+          This permanently deletes your account and all data. This cannot be undone.
+        </p>
+
+        <div className="flex gap-3 justify-end">
+          <Button
+            variant="outline"
+            onClick={() => setShowDeleteModal(false)}
+          >
+            Cancel
+          </Button>
+
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setShowDeleteModal(false);
+              confirmDeleteAccount();
+            }}
+            disabled={isDeletingAccount}
+          >
+            {isDeletingAccount ? "Deleting..." : "Delete Account"}
+          </Button>
+        </div>
+      </Modal>
+
     </DashboardLayout>
   );
 }
