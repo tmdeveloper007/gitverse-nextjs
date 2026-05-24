@@ -48,6 +48,8 @@ export class AnalysisJobService {
           },
         });
         if (existingJob) return existingJob;
+
+        // The active job may have completed between the P2002 and the lookup. Retry exactly once.
         return await prisma.analysisJob.create({
           data: {
             repositoryId: params.repositoryId,
@@ -62,6 +64,18 @@ export class AnalysisJobService {
       }
       throw error;
     }
+  }
+
+  async getJob(params: {
+    jobId: string;
+    userId: number;
+  }): Promise<AnalysisJob | null> {
+    return prisma.analysisJob.findFirst({
+      where: {
+        id: params.jobId,
+        userId: params.userId,
+      },
+    });
   }
 
   async updateProgress(params: {
