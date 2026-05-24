@@ -262,15 +262,33 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
             Interactive visualization of file dependencies and relationships
           </p>
         </div>
-        <div className="flex flex-wrap gap-3 sm:gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0" />
-            <span>Folders</span>
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4 text-xs">
+          <div className="flex gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0" />
+              <span>Folders</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
+              <span>Files</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
-            <span>Files</span>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={isExporting} className="gap-2">
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportPNG}>
+                Export as PNG (High Res)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPDF}>
+                Export as PDF (Vector Quality)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <div className="glass rounded-lg p-4 sm:p-6">
