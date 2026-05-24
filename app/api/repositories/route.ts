@@ -3,6 +3,7 @@ import { isHttpError, requireAuth , sanitizeError } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { analysisJobService } from "@/lib/services/analysisJobService";
 import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
+import { logger } from "@/lib/logger";
 function kickLocalRunner(request: NextRequest) {
   if (process.env.NODE_ENV === "production") return;
   const origin = new URL(request.url).origin;
@@ -19,7 +20,7 @@ function kickProductionWorker() {
   if (process.env.NODE_ENV !== "production") return;
 
   void triggerAnalysisWorkerWorkflow().catch((error) => {
-    console.error("Failed to dispatch analysis worker workflow:", sanitizeError(error));
+    logger.error({ err: sanitizeError(error) }, "Failed to dispatch analysis worker workflow");
   });
 }
 
@@ -67,8 +68,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
-    console.error("Create repository error:", sanitizeError(error));
-    console.error("Error stack:", error.stack);
+    logger.error({ err: sanitizeError(error), stack: error.stack }, "Create repository error");
     if (isHttpError(error)) {
       return NextResponse.json(
         { error: error.message },
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ repositories });
   } catch (error: any) {
-    console.error("List repositories error:", sanitizeError(error));
+    logger.error({ err: sanitizeError(error) }, "List repositories error");
     if (isHttpError(error)) {
       return NextResponse.json(
         { error: error.message },
