@@ -1,3 +1,4 @@
+import { sanitizeError } from "@/lib/middleware";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
@@ -9,6 +10,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password } = body;
 
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
+
     // Validation
     if (!email || !password) {
       return apiError(400, "Email and password are required");
@@ -16,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {

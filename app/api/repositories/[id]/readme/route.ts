@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isHttpError, requireAuth } from "@/lib/middleware";
+import { isHttpError, requireAuth , sanitizeError } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { apiError } from "@/lib/api-error";
 export async function POST(
@@ -28,7 +28,14 @@ export async function POST(
       },
     });
   } catch (error: any) {
-    console.error("Fetch README error:", error);
+    console.error("Fetch README error:", sanitizeError(error));
+
+    if (error instanceof GitHubRateLimitError) {
+      return NextResponse.json(
+        { error: error.message, retryAfter: error.retryAfterSeconds },
+        { status: 429 }
+      );
+    }
 
     if (isHttpError(error)) {
       return apiError(error.status, error.message);
