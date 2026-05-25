@@ -424,7 +424,8 @@ export class RepositoryService {
             checkAborted();
 const latestCommitHashes = commits.map((commit: { hash: string }) => commit.hash);
       // Enforce commit retention window
-      
+     
+if (latestCommitHashes.length > 0) { 
 await prisma.$transaction([
   prisma.fileChange.deleteMany({
     where: {
@@ -446,6 +447,7 @@ await prisma.$transaction([
     },
   }),
 ]);
+}
      
       // Analyze files
       await report({ progressPercent: 65, progressMessage: "Scanning files" });
