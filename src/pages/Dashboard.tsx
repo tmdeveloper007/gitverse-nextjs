@@ -1,7 +1,7 @@
 "use client";
 
 export const dynamic = "force-dynamic";
-
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -24,6 +24,7 @@ import {
   Button,
   Input,
   EmptyState,
+  Skeleton,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildApiUrl } from "@/services/apiConfig";
@@ -235,9 +236,61 @@ export default function Dashboard() {
       setAnalyzing(false);
     }
   };
-
+if (loading) {
   return (
     <DashboardLayout>
+      <div className="space-y-6">
+        
+        {/* Welcome skeleton */}
+        <div className="space-y-2">
+          <Skeleton width="250px" height="28px" />
+          <Skeleton width="400px" height="18"/>
+        </div>
+
+        {/* Input skeleton */}
+        <div className="p-6 border rounded-lg space-y-3">
+          <Skeleton width="100%" height="40" />
+          <Skeleton width="180" height="40" />
+        </div>
+
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="p-4 border rounded-lg space-y-3">
+              <Skeleton width="60%" height="16" />
+              <Skeleton width="40%" height="28" />
+              <Skeleton width="80%" height="12" />
+            </div>
+          ))}
+        </div>
+
+        {/* Cards skeleton */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-2 space-y-3">
+            <Skeleton width="40%" height="20" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="p-4 border rounded-lg space-y-2">
+                <Skeleton width="30%" height="18" />
+                <Skeleton width="70%" height="14" />
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            <Skeleton width="50%" height="20" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} width="100%" height="40" />
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </DashboardLayout>
+  );
+}
+  return (
+    <DashboardLayout>
+    <div className="min-h-screen bg-background"></div>
       <div className="space-y-6">
         {/* Welcome Section */}
         <div>
@@ -302,8 +355,8 @@ export default function Dashboard() {
                     </p>
                     {loading ? (
                       <div className="space-y-2">
-                        <div className="h-8 w-20 rounded-md bg-muted animate-pulse" />
-                        <div className="h-4 w-28 rounded-md bg-muted animate-pulse" />
+                        <Skeleton className="h-8 w-20" />
+                        <Skeleton className="h-4 w-28" />
                       </div>
                     ) : (
                       <>
@@ -353,8 +406,26 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Loading repositories...
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-lg border border-border/50"
+                    >
+                      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <Skeleton className="h-9 w-9 rounded-lg flex-shrink-0" />
+                        <div className="space-y-2 min-w-0">
+                          <Skeleton className="h-5 w-32 sm:w-48" />
+                          <Skeleton className="h-4 w-40 sm:w-64" />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 sm:gap-4 mt-2 sm:mt-0">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-12" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : recentRepositories.length === 0 ? (
                 <EmptyState
@@ -431,8 +502,21 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {recentActivity.map((activity, index) => (
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-start gap-2 sm:gap-3">
+                      <Skeleton className="mt-1 h-6 w-6 rounded-full flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-full max-w-[200px]" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentActivity.map((activity, index) => (
                   <div key={index} className="flex items-start gap-2 sm:gap-3">
                     <div className="mt-1 p-1.5 rounded-full bg-accent/10 flex-shrink-0">
                       <Activity className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-accent" />
@@ -451,6 +535,7 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
+              )}
             </CardContent>
           </Card>
         </div>
