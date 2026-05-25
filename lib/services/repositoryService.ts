@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
+import { invalidateGeminiAnalysisCacheForRepository } from "./geminiAnalysisCacheService";
 import { FileChangeType } from "@prisma/client";
 
 function yieldIfHighMemory(threshold = 0.7): Promise<void> {
@@ -18,6 +19,7 @@ export interface AnalyzeRepositoryInput {
   name: string;
   url: string;
   description?: string;
+  targetDirectory?: string;
   userId: number;
 }
 
@@ -80,7 +82,7 @@ export class RepositoryService {
   async fetchAndStoreReadme(repositoryId: number, userId: number) {
     const repository = await prisma.repository.findFirst({
       where: { id: repositoryId, userId },
-      select: { id: true, url: true },
+      select: { id: true, url: true, targetDirectory: true },
     });
 
     if (!repository) {
@@ -102,7 +104,14 @@ export class RepositoryService {
         noSingleBranch: false,
       });
 
-      const readme = await this.tryReadmeFromRepoPath(tempDir);
+      const scopedPath = repository.targetDirectory
+        ? path.join(tempDir, repository.targetDirectory)
+        : null;
+
+      const readme =
+        (scopedPath
+          ? await this.tryReadmeFromRepoPath(scopedPath)
+          : null) ?? (await this.tryReadmeFromRepoPath(tempDir));
 
       const updated = await prisma.repository.update({
         where: { id: repositoryId },
@@ -134,6 +143,7 @@ export class RepositoryService {
       where: {
         url: input.url,
         userId: input.userId,
+        targetDirectory: input.targetDirectory ?? null,
       },
     });
 
@@ -146,6 +156,7 @@ export class RepositoryService {
         name: input.name,
         url: input.url,
         description: input.description,
+        targetDirectory: input.targetDirectory ?? null,
         userId: input.userId,
         status: "pending",
       },
@@ -159,7 +170,7 @@ export class RepositoryService {
    */
   async analyzeRepository(
     repositoryId: number,
-    opts?: { onProgress?: RepositoryAnalysisProgressReporter },
+    opts?: { onProgress?: RepositoryAnalysisProgressReporter; scope?: string },
   ) {
     const repository = await prisma.repository.findUnique({
       where: { id: repositoryId },
@@ -186,6 +197,19 @@ export class RepositoryService {
 
     await report({ progressPercent: 1, progressMessage: "Starting" });
 
+    const timeoutMs = opts?.timeoutMs ?? 15 * 60 * 1000; // 15 minutes default
+    const controller = new AbortController();
+    const { signal } = controller;
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
+    const checkAborted = () => {
+      if (signal.aborted) {
+        throw new Error(`Repository analysis timed out after ${timeoutMs / 60000} minutes`);
+      }
+    };
+
     // Create temporary directory for cloning
     const tempDir = path.join(
       os.tmpdir(),
@@ -196,12 +220,15 @@ export class RepositoryService {
     let gitService: GitService | null = null;
 
     try {
+      checkAborted();
+
       // Clone repository
       await report({
         progressPercent: 5,
         progressMessage: "Cloning repository",
       });
       gitService = await GitService.cloneRepository(repository.url, tempDir, {
+        signal,
         onProgress: (pct, msg) => {
           const analysisPct = 5 + Math.round((pct / 100) * 3);
           report({
@@ -211,9 +238,17 @@ export class RepositoryService {
         },
       });
 
+      checkAborted();
+
       // Capture README first, then size + branches in parallel.
       await report({ progressPercent: 8, progressMessage: "Reading README" });
-      const readme = await this.tryReadmeFromRepoPath(tempDir);
+      const scopedReadmePath = repository.targetDirectory
+        ? path.join(tempDir, repository.targetDirectory)
+        : null;
+      const readme =
+        (scopedReadmePath
+          ? await this.tryReadmeFromRepoPath(scopedReadmePath)
+          : null) ?? (await this.tryReadmeFromRepoPath(tempDir));
       await prisma.repository.update({
         where: { id: repositoryId },
         data: {
@@ -222,6 +257,8 @@ export class RepositoryService {
           readmeFetchedAt: new Date(),
         },
       });
+
+      checkAborted();
 
       // Get repository size and branches.
       await report({
@@ -232,6 +269,8 @@ export class RepositoryService {
         gitService.getRepositorySize(),
         gitService.getBranches(),
       ]);
+
+      checkAborted();
 
       // Analyze branches
       await report({
@@ -251,6 +290,8 @@ export class RepositoryService {
         })),
         skipDuplicates: true,
       });
+
+      checkAborted();
 
       // Analyze commits from all branches
       await report({
@@ -288,6 +329,7 @@ export class RepositoryService {
       const commitChunkSize = 100;
 
       for (let i = 0; i < newCommits.length; i += commitChunkSize) {
+        checkAborted();
         const chunk = newCommits.slice(i, i + commitChunkSize);
 
         try {
@@ -385,15 +427,19 @@ export class RepositoryService {
         await yieldIfHighMemory();
       }
 
+
+      checkAborted();
+
       // Analyze files
       await report({ progressPercent: 65, progressMessage: "Scanning files" });
-      const files = await gitService.getFileTree();
+      const files = await gitService.getFileTree(opts?.scope);
 
       // Avoid querying existing file paths (can be huge). Just rely on
       // `skipDuplicates` with the unique constraint (repositoryId, path).
       if (files.length > 0) {
         const chunkSize = 500;
         for (let i = 0; i < files.length; i += chunkSize) {
+          checkAborted();
           const chunk = files.slice(i, i + chunkSize);
           await prisma.file.createMany({
             data: chunk.map((file) => ({
@@ -418,6 +464,8 @@ export class RepositoryService {
       } else {
       }
 
+      checkAborted();
+
       // Analyze contributors and languages in parallel; both are independent after file scan.
       await report({
         progressPercent: 80,
@@ -430,8 +478,12 @@ export class RepositoryService {
 
       const [contributors, languages] = await Promise.all([
         gitService.getContributors(),
-        gitService.detectLanguages(),
+        gitService.detectLanguages({
+          targetDirectory: repository.targetDirectory ?? null,
+        }),
       ]);
+
+      checkAborted();
 
       const totalContributions = contributors.reduce(
         (sum, c) => sum + c.commits,
@@ -461,6 +513,13 @@ export class RepositoryService {
         });
       }
 
+      // Detect languages
+      console.log(`Detecting languages for repository ${repositoryId}`);
+      await report({
+        progressPercent: 90,
+        progressMessage: "Detecting languages",
+      });
+      const languages = await gitService.detectLanguages(opts?.scope);
       // Languages to ignore (config/data formats, not actual code)
       const ignoredLanguages = ["JSON", "YAML", "Markdown", "TOML", "CSV"];
 
@@ -526,6 +585,21 @@ export class RepositoryService {
         },
       });
 
+      // Cache invalidation: keep only entries for the current HEAD commit on the default branch.
+      try {
+        const headCommit = await prisma.commit.findFirst({
+          where: { repositoryId, branch: defaultBranch },
+          orderBy: { committedAt: "desc" },
+          select: { hash: true },
+        });
+
+        if (headCommit?.hash) {
+          await invalidateGeminiAnalysisCacheForRepository(repositoryId, headCommit.hash);
+        }
+      } catch (error) {
+        console.warn("Gemini cache invalidation failed:", error);
+      }
+
       await report({ progressPercent: 100, progressMessage: "Completed" });
     } catch (error: any) {
       console.error(`Error analyzing repository ${repositoryId}:`, error);
@@ -536,6 +610,7 @@ export class RepositoryService {
       await report({ progressMessage: "Failed" });
       throw error;
     } finally {
+      clearTimeout(timeoutId);
       // Cleanup cloned repository
       if (gitService) {
         await gitService.cleanup();
@@ -674,6 +749,67 @@ export class RepositoryService {
       status: repository.status,
       lastAnalyzedAt: repository.lastAnalyzedAt,
     };
+  }
+
+  /**
+   * Get aggregate file-level statistics across the full repository history.
+   */
+  async getFileStats(
+    repositoryId: number,
+    userId: number,
+    paths: string[],
+  ) {
+    const repository = await prisma.repository.findFirst({
+      where: { id: repositoryId, userId },
+      select: { id: true },
+    });
+
+    if (!repository) {
+      throw new Error("Repository not found");
+    }
+
+    const uniquePaths = Array.from(
+      new Set(paths.map((path) => path.trim()).filter(Boolean)),
+    );
+
+    if (uniquePaths.length === 0) {
+      return [];
+    }
+
+    const stats = await prisma.fileChange.groupBy({
+      by: ["path"],
+      where: {
+        path: { in: uniquePaths },
+        commit: { repositoryId },
+      },
+      _count: { id: true },
+      _sum: {
+        additions: true,
+        deletions: true,
+      },
+    });
+
+    const statsByPath = new Map(
+      stats.map((stat) => [
+        stat.path,
+        {
+          path: stat.path,
+          commitCount: stat._count.id,
+          additions: stat._sum.additions ?? 0,
+          deletions: stat._sum.deletions ?? 0,
+        },
+      ]),
+    );
+
+    return uniquePaths.map(
+      (path) =>
+        statsByPath.get(path) ?? {
+          path,
+          commitCount: 0,
+          additions: 0,
+          deletions: 0,
+        },
+    );
   }
 }
 
