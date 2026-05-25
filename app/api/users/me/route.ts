@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth , sanitizeError } from "@/lib/middleware";
-
+import bcrypt from "bcryptjs";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -51,30 +51,69 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
+    const body = await request.json();
+    const { currentPassword } = body;
+
+    if (!currentPassword) {
+      return NextResponse.json(
+        { error: "Current password is required" },
+        { status: 400 }
+      );
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: user.userId },
+    });
+
+    if (!existingUser || !existingUser.passwordHash) {
+      return NextResponse.json(
+        { error: "Password verification unavailable for this account" },
+        { status: 400 }
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      existingUser.passwordHash
+    );
+
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { error: "Incorrect password" },
+        { status: 401 }
+      );
+    }
+
     // Delete related GitHub repositories
-await prisma.gitHubRepo.deleteMany({
-  where: {
-    userId: user.userId,
-  },
-});
+    await prisma.gitHubRepo.deleteMany({
+      where: {
+        userId: user.userId,
+      },
+    });
 
-// Delete related GitHub accounts
-await prisma.gitHubAccount.deleteMany({
-  where: {
-    userId: user.userId,
-  },
-});
+    // Delete related GitHub accounts
+    await prisma.gitHubAccount.deleteMany({
+      where: {
+        userId: user.userId,
+      },
+    });
 
-// Delete the user
-await prisma.user.delete({
-  where: { id: user.userId },
-});
+    // Delete the user
+    await prisma.user.delete({
+      where: { id: user.userId },
+    });
+
     return NextResponse.json({ message: "Account deleted" });
   } catch (error: any) {
     console.error("Error deleting account:", sanitizeError(error));
+
     if (error?.code === "P2025") {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
     }
+
     return NextResponse.json(
       { error: "Failed to delete account" },
       { status: 500 }
