@@ -50,5 +50,14 @@ describe('apiError', () => {
       },
       { status: 401 }
     );
+    expect(response).toEqual({
+      body: {
+        error: {
+          message: 'Unauthorized',
+          code: 'AUTH_EXPIRED',
+        },
+      },
+      status: 401,
+    });
   });
 });
