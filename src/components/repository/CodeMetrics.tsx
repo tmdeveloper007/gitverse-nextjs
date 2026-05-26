@@ -1,3 +1,6 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
 import {
   Code,
   FileCode,
@@ -32,11 +35,26 @@ interface QualityMetric {
   description: string;
 }
 
+interface RepositoryData {
+  languages: LanguageStat[];
+  files: FileTypeStat[];
+  commits: any[];
+  contributors: any[];
+  branches?: any[];
+  size: number;
+}
+
 interface CodeMetricsProps {
-  repository?: any;
+  repository?: RepositoryData;
 }
 
 export function CodeMetrics({ repository }: CodeMetricsProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const getLanguageColor = (name: string): string => {
     const colors: Record<string, string> = {
       TypeScript: "bg-blue-500",
@@ -236,7 +254,7 @@ export function CodeMetrics({ repository }: CodeMetricsProps) {
   // Calculate real dependencies from repository
   const packageJsonFile = repository?.files?.find(
     (f: any) => f.path?.toLowerCase() === "package.json"
-  );
+  ) as any;
   const totalDependencies =
     (packageJsonFile?.dependencies?.length || 0) +
     (packageJsonFile?.devDependencies?.length || 0);
@@ -310,8 +328,8 @@ export function CodeMetrics({ repository }: CodeMetricsProps) {
                     <div className="flex items-center gap-3">
                       <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                         <div
-                          className={`h-full ${lang.color} transition-all duration-500`}
-                          style={{ width: `${lang.percentage}%` }}
+                          className={`h-full ${lang.color} transition-all duration-500 ease-out`}
+                          style={{ width: mounted ? `${lang.percentage}%` : "0%" }}
                         />
                       </div>
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
