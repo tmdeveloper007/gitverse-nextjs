@@ -65,10 +65,10 @@ if (isJwtAuth) {
     return null;
   }
 
-  // Reject revoked tokens
-  if (userPayload.tokenVersion < dbUser.tokenVersion) {
-    return null;
-  }
+  // Require exact token version match
+if (userPayload.tokenVersion !== dbUser.tokenVersion) {
+  return null;
+}
 }
   } catch (error) {
     console.error("Database check failed in auth middleware:", error);
