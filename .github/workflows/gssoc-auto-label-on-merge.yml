@@ -85,9 +85,9 @@ jobs:
             const totalChanges = additions + deletions;
 
             let level = 'level:beginner';
-            if      (totalChanges > 500 || changedFiles > 15) level = 'level:critical';
-            else if (totalChanges > 200 || changedFiles > 8)  level = 'level:advanced';
-            else if (totalChanges > 50  || changedFiles > 3)  level = 'level:intermediate';
+            if      (totalChanges > 600) level = 'level:critical';
+            else if (totalChanges > 400) level = 'level:advanced';
+            else if (totalChanges > 200) level = 'level:intermediate';
 
             // ── Apply labels to the PR ────────────────────────────────────────
             if (!isSpam && !labelNames.includes('gssoc:approved')) {
@@ -205,7 +205,7 @@ jobs:
                   console.log(`🏷️ Applied [${issueLabelsToAdd.join(', ')}] to issue #${issueNum}`);
                 }
 
-                // Comment on the linked issue
+                // Comment on the linked issue + close it
                 if (!isSpam) {
                   await github.rest.issues.createComment({
                     owner, repo, issue_number: issueNum,
@@ -225,6 +225,18 @@ jobs:
                     ].join('\n'),
                   });
                   console.log(`💬 Merge comment posted on issue #${issueNum}`);
+
+                  // ── Auto-close the linked issue ───────────────────────────
+                  if (issueData.state === 'open') {
+                    await github.rest.issues.update({
+                      owner, repo, issue_number: issueNum,
+                      state: 'closed',
+                      state_reason: 'completed',
+                    });
+                    console.log(`🔒 Closed issue #${issueNum} as completed`);
+                  } else {
+                    console.log(`ℹ️ Issue #${issueNum} was already closed, skipping.`);
+                  }
                 }
 
               } catch (err) {
