@@ -3,6 +3,7 @@ import * as htmlToImage from "html-to-image";
 import * as d3 from "d3";
 import { Card } from "@/components/ui";
 import { GraphAnalyzer } from "@/utils/graphAnalyzer";
+import { MapControls } from "./MapControls";
 
 interface RepositoryFile {
   path: string;
@@ -102,6 +103,9 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const exportRef = useRef<HTMLDivElement>(null);
 
+  const zoomRef = useRef<any>(null);
+  const svgSelectionRef = useRef<any>(null);
+  
   const graphAnalyzer = new GraphAnalyzer();
   const graphData = graphAnalyzer.buildDependencyGraph(repository?.files || []);
   const exportGraph = async (format: "png" | "svg") => {
@@ -125,6 +129,33 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       link.click();
     } catch (error) {
       console.error("Export failed:", error);
+    }
+  };
+
+  const handleZoomIn = () => {
+    if (svgSelectionRef.current && zoomRef.current) {
+      svgSelectionRef.current
+        .transition()
+        .duration(300)
+        .call(zoomRef.current.scaleBy, 1.3);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (svgSelectionRef.current && zoomRef.current) {
+      svgSelectionRef.current
+        .transition()
+        .duration(300)
+        .call(zoomRef.current.scaleBy, 1 / 1.3);
+    }
+  };
+
+  const handleReset = () => {
+    if (svgSelectionRef.current && zoomRef.current) {
+      svgSelectionRef.current
+        .transition()
+        .duration(500)
+        .call(zoomRef.current.transform, d3.zoomIdentity);
     }
   };
 
@@ -340,6 +371,10 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
 
     svg.call(zoom as any);
 
+    // Save D3 zoom behavior and SVG selection for programmatic triggers
+    zoomRef.current = zoom;
+    svgSelectionRef.current = svg;
+
     // Animate nodes on load
     node
       .selectAll("circle")
@@ -430,6 +465,35 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
         <div
           ref={tooltipRef}
           className="
+      </div>
+      <div className="glass rounded-lg p-4 sm:p-6">
+        <h3 className="text-base sm:text-lg font-semibold mb-4">
+          Code Dependencies
+        </h3>
+        <div className="relative overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="auto"
+            className="text-foreground min-h-96 sm:min-h-96"
+            style={{ background: "rgba(0,0,0,0.2)", minHeight: "300px" }}
+            viewBox="0 0 900 600"
+            preserveAspectRatio="xMidYMid meet"
+          />
+          <MapControls 
+            onZoomIn={handleZoomIn} 
+            onZoomOut={handleZoomOut} 
+            onReset={handleReset} 
+          />
+        </div>
+
+      </div>
+      <p className="text-xs text-muted-foreground mt-2 px-4 sm:px-0">
+        💡 Drag nodes to reposition • Scroll to zoom • Hover for details
+      </p>
+      <div
+  ref={tooltipRef}
+  className="
     fixed p-3 rounded-lg pointer-events-none shadow-xl border
     translate-x-[-120px] translate-y-[-120px]
     sm:translate-x-[-250px] sm:translate-y-[-250px]
