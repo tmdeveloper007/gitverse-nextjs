@@ -30,7 +30,7 @@ export class GitHubAppService {
   createAppJwt(): string {
     const now = Math.floor(Date.now() / 1000);
 
-   // Reuse cached JWT if still valid for at least 60 more seconds
+    // Reuse cached JWT if still valid for at least 60 more seconds
     if (
       this.cachedJwt &&
       now < this.cachedJwtExpiresAt - 60
