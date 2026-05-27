@@ -43,16 +43,22 @@ export async function POST(request: NextRequest) {
     });
 
     if (!userDetails) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
     }
 
     const passwordHash = userDetails.passwordHash;
-    if (!passwordHash) {
-      return NextResponse.json(
-        { error: "Cannot set password: account uses OAuth authentication" },
-        { status: 400 }
-      );
-    }
+
+    // Existing password users must verify current password
+    if (passwordHash) {
+      if (!currentPassword) {
+        return NextResponse.json(
+          { message: "Current password is required" },
+          { status: 400 }
+        );
+      }
 
     if (!currentPassword) {
       return NextResponse.json(
@@ -89,9 +95,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ message: "Password changed successfully" });
+    return NextResponse.json({
+      message: "Password changed successfully",
+    });
   } catch (error: any) {
     console.error("Error changing password:", sanitizeError(error));
+
     return NextResponse.json(
       { error: "Failed to change password" },
       { status: 500 }
