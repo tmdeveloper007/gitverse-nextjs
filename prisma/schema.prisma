@@ -39,6 +39,7 @@ model User {
   lastFailedAttemptAt   DateTime?    @map("last_failed_attempt_at")
   createdAt             DateTime     @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
+  passwordChangedAt     DateTime?    @map("password_changed_at")
   repositories          Repository[]
   analysisJobs          AnalysisJob[]
   accounts              Account[]
