@@ -412,3 +412,17 @@ model LoginAttempt {
   @@index([createdAt])
   @@map("login_attempts")
 }
+
+model WebhookEvent {
+  id             String    @id @default(uuid()) @db.Uuid
+  event          String
+  action         String?
+  payload        Json
+  status         String    @default("pending") // pending, processing, completed, failed
+  error          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("webhook_events")
+}
