@@ -1,8 +1,10 @@
 import { normalizeKnownRepoHttpUrl, normalizeTargetDirectory } from "@/lib/utils/repositoryUtils";import { NextRequest, NextResponse } from "next/server";
-import { isHttpError, requireAuth , sanitizeError } from "@/lib/middleware";
+import { isValidGitScope } from "@/lib/utils/validators";
+import { isHttpError, requireAuth, sanitizeError, getPrismaErrorResponse } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { analysisJobService } from "@/lib/services/analysisJobService";
 import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
+import { GitService } from "@/lib/services/gitService";
 import { logger } from "@/lib/logger";
 function kickLocalRunner(request: NextRequest) {
   if (process.env.NODE_ENV === "production") return;
@@ -61,18 +63,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedUrl = normalizeGitHubRepoUrl(url);
-
     const normalizedUrl = normalizeKnownRepoHttpUrl(url);
     if (!normalizedUrl) {
       return NextResponse.json(
         {
           error:
-            "Invalid repository URL. Expected a GitHub repository URL like https://github.com/owner/repo, https://github.com/owner/repo.git, git@github.com:owner/repo.git, or ssh://git@github.com/owner/repo.git.",
-        },
             "Invalid repository URL. Use a full repository URL like https://github.com/owner/repo",
         },
         { status: 400 },
+      );
+    }
+
+    // Backend check to catch non-existent or private GitHub repositories
+    const exists = await GitService.checkGithubRepositoryExists(normalizedUrl);
+    if (!exists) {
+      return NextResponse.json(
+        {
+          error: "NOT_FOUND",
+          message: "Repository not found. Please ensure the URL is correct and the repository is public.",
+        },
+        { status: 404 }
       );
     }
 
@@ -94,9 +104,16 @@ export async function POST(request: NextRequest) {
 
     console.log("Repository created:", repository.id);
 
+    const rawScope = body.scope;
+    if (rawScope != null && (typeof rawScope !== "string" || !isValidGitScope(rawScope))) {
+      return NextResponse.json(
+        { error: "Invalid scope. Only alphanumeric characters, underscore, dot, slash, and hyphen are allowed." },
+        { status: 400 },
+      );
+    }
     let trimmedScope: string | undefined = undefined;
-    if (body.scope && typeof body.scope === "string") {
-      trimmedScope = body.scope.trim();
+    if (rawScope && typeof rawScope === "string") {
+      trimmedScope = rawScope.trim();
     }
     const job = await analysisJobService.createRepositoryAnalysisJob({
       repositoryId: repository.id,
@@ -117,6 +134,11 @@ export async function POST(request: NextRequest) {
 
     const stack = process.env.NODE_ENV === 'development' ? error.stack : error.stack?.split('\n').slice(0, 3).join('\n');
     logger.error({ err: sanitizeError(error), stack }, "Create repository error");
+    const prismaError = getPrismaErrorResponse(error);
+    if (prismaError) {
+      return prismaError;
+    }
+
     if (isHttpError(error)) {
       return NextResponse.json(
         { error: error.message },
@@ -134,13 +156,26 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
-    const repositories = await repositoryService.listRepositories(user.userId);
+    
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get("limit");
+    const cursorParam = searchParams.get("cursor");
 
-    return NextResponse.json({ repositories });
+    const limit = limitParam ? parseInt(limitParam, 10) : 10;
+    const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined;
+
+    const result = await repositoryService.listRepositories(user.userId, limit, cursor);
+
+    return NextResponse.json(result);
   } catch (error: any) {
     console.error("List repositories error:", error);
 
     logger.error({ err: sanitizeError(error) }, "List repositories error");
+    const prismaError = getPrismaErrorResponse(error);
+    if (prismaError) {
+      return prismaError;
+    }
+
     if (isHttpError(error)) {
       return NextResponse.json(
         { error: error.message },
