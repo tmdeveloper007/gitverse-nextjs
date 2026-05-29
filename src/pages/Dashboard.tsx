@@ -264,6 +264,7 @@ export default function Dashboard() {
       const cleanUrl = repoUrl.trim().replace(/\/$/, "").replace(/\.git$/, "");
       const cleanParts = cleanUrl.split("/");
       const ownerName = cleanParts[cleanParts.length - 2] || "unknown";
+      const repoName = cleanParts[cleanParts.length - 1] || "unknown";
 
       const response = await axios.post(
         buildApiUrl("/api/repositories"),
