@@ -12,6 +12,7 @@ import {
   GitBranch,
   Loader2,
   CheckCircle2,
+  Circle,
 } from "lucide-react";
 import {
   Button,
@@ -317,9 +318,51 @@ export default function Signup() {
                   required
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Must be at least 8 characters and include uppercase, lowercase, and a number
-              </p>
+              <div className="mt-2 space-y-1.5 text-xs transition-all duration-300 ease-in-out">
+                <p className="font-medium text-muted-foreground mb-1">Password must include:</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div className="flex items-center gap-1.5 transition-colors">
+                    {password.length >= 8 ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                    )}
+                    <span className={password.length >= 8 ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
+                      8+ characters
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 transition-colors">
+                    {/[A-Z]/.test(password) ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                    )}
+                    <span className={/[A-Z]/.test(password) ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
+                      Uppercase letter
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 transition-colors">
+                    {/[a-z]/.test(password) ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                    )}
+                    <span className={/[a-z]/.test(password) ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
+                      Lowercase letter
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 transition-colors">
+                    {/\d/.test(password) ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                    )}
+                    <span className={/\d/.test(password) ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
+                      One number
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div

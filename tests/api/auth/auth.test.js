@@ -59,6 +59,36 @@ describe('Authentication API Integration Tests', () => {
       
       expect(isValid).toBe(false);
     });
+
+    test('Password complexity - too short is rejected', () => {
+      const password = 'Ab1';
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+      expect(passwordRegex.test(password)).toBe(false);
+    });
+
+    test('Password complexity - missing uppercase is rejected', () => {
+      const password = 'password123!';
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+      expect(passwordRegex.test(password)).toBe(false);
+    });
+
+    test('Password complexity - missing lowercase is rejected', () => {
+      const password = 'PASSWORD123!';
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+      expect(passwordRegex.test(password)).toBe(false);
+    });
+
+    test('Password complexity - missing digit is rejected', () => {
+      const password = 'Password!';
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+      expect(passwordRegex.test(password)).toBe(false);
+    });
+
+    test('Password complexity - valid password is accepted', () => {
+      const password = 'Password123!';
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+      expect(passwordRegex.test(password)).toBe(true);
+    });
   });
 
   // ==================== LOGIN TESTS ====================
