@@ -99,33 +99,45 @@ export function useRepositories({ limit = DEFAULT_LIMIT } = {}): UseRepositories
   }, [cursor, hasMore, limit]);
 
   useEffect(() => {
-  if (!initRef.current) {
-    initRef.current = true;
+  const controller = new AbortController();
 
-    const controller = new AbortController();
+  const run = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    const fetchRepos = async () => {
-      try {
-        const res = await fetch("/api/repositories", {
-          signal: controller.signal,
-        });
+      const token = localStorage.getItem("gitverse_token");
 
-        const data = await res.json();
-        setRepositories(data);
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          setError(err);
-        }
+      const url = new URL(buildApiUrl("/api/repositories"));
+      url.searchParams.set("limit", limit.toString());
+
+      const response = await axios.get(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal, // important for abort support
+      });
+
+      const { data, nextCursor, hasMore: newHasMore } = response.data;
+
+      const newRepos = Array.isArray(data) ? data : [];
+
+      setRepos(newRepos);
+      setCursor(nextCursor);
+      setHasMore(newHasMore);
+    } catch (err: any) {
+      if (err.name !== "CanceledError" && err.name !== "AbortError") {
+        setError(err.message || "Failed to fetch repositories.");
       }
-    };
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchRepos();
+  run();
 
-    return () => {
-      controller.abort();
-    };
-  }
-}, [fetchRepos]);
+  return () => {
+    controller.abort();
+  };
+}, [limit]);
 
   const loadMore = useCallback(async () => {
     await fetchRepos(true);
