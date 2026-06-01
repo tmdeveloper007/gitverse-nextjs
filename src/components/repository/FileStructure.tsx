@@ -19,6 +19,7 @@ import {
   CardContent,
   EmptyState,
 } from "@/components/ui";
+import { ContributionReadinessCard } from "@/components/repository/ContributionReadinessCard";
 
 interface FileNode {
   name: string;
@@ -462,6 +463,14 @@ export const FileStructure = ({ repository }: FileStructureProps) => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Contribution Readiness Score */}
+            <div className="mb-8">
+              <ContributionReadinessCard 
+                file={selectedFile} 
+                repository={repository}
+              />
             </div>
 
             {/* Change Summary */}
