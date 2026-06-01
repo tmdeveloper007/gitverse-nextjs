@@ -51,7 +51,16 @@ export async function GET(
       return NextResponse.json({ error: `GitHub API error: ${response.statusText}` }, { status: response.status });
     }
 
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: "File exceeds maximum preview size of 5 MB" }, { status: 413 });
+    }
+
     const content = await response.text();
+
+    if (content.length > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: "File exceeds maximum preview size of 5 MB" }, { status: 413 });
+    }
 
     return NextResponse.json({ content, path: filePath });
   } catch (error: any) {
