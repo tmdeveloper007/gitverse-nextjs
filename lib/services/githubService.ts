@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance, isAxiosError } from "axios";
+import { computeBackoffMs } from "@/lib/utils/retry";
 
 export class GitHubRateLimitError extends Error {
   retryAfterSeconds: number;
@@ -192,7 +193,7 @@ export class GitHubService {
           config.retryCount = config.retryCount || 0;
           if (config.retryCount < 3) {
             config.retryCount += 1;
-            const backoff = Math.pow(2, config.retryCount) * 1000 + Math.random() * 1000;
+            const backoff = computeBackoffMs(config.retryCount - 1) + Math.random() * 1000;
             await new Promise((resolve) => setTimeout(resolve, backoff));
             return this.client(config);
           }
