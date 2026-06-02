@@ -9,7 +9,13 @@ import { FileChangeType } from "@prisma/client";
 import { repoSyncLimiter } from "../utils/concurrencyLimiter";
 import { withDbRetry } from "../utils/dbRetry";
 
-function yieldIfHighMemory(threshold = 0.7): Promise<void> {
+function yieldIfHighMemory(threshold?: number): Promise<void> {
+  if (threshold === undefined) {
+    const envThreshold = process.env.GITVERSE_MEM_YIELD_THRESHOLD;
+    threshold = envThreshold ? parseFloat(envThreshold) : 0.7;
+    if (isNaN(threshold)) threshold = 0.7;
+  }
+
   const usage = process.memoryUsage();
   if (usage.heapUsed / usage.heapTotal > threshold) {
     return new Promise((resolve) => setImmediate(resolve));
