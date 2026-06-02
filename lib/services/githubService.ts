@@ -156,19 +156,18 @@ export async function fetchGitHubFileContent(
   const { owner, repo } = ownerRepo;
 
   const token = await getDecryptedGitHubToken(userId);
+  const apiHeaders: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "GitVerse-App",
+  };
+  if (token) {
+    apiHeaders["Authorization"] = `token ${token}`;
+  }
 
   try {
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "GitVerse-App",
-    };
-    if (token) {
-      headers["Authorization"] = `token ${token}`;
-    }
-
     const response = await axios.get(
       `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`,
-      { headers },
+      { headers: apiHeaders },
     );
 
     if (response.data && response.data.content) {
@@ -181,7 +180,7 @@ export async function fetchGitHubFileContent(
   } catch (error) {
     console.warn(
       `Failed to fetch file ${filePath} via API, trying raw fallback:`,
-      error,
+      sanitizeGitHubError(error),
     );
   }
 
@@ -190,7 +189,24 @@ export async function fetchGitHubFileContent(
     headers["Authorization"] = `token ${token}`;
   }
 
-  for (const branch of ["main", "master"]) {
+  const fallbackBranches = ["main", "master"];
+  try {
+    const response = await axios.get(
+      `https://api.github.com/repos/${owner}/${repo}`,
+      { headers: apiHeaders },
+    );
+    const defaultBranch = response.data?.default_branch;
+    if (typeof defaultBranch === "string" && defaultBranch.length > 0) {
+      fallbackBranches.unshift(defaultBranch);
+    }
+  } catch (error) {
+    console.warn(
+      `Failed to fetch default branch for ${owner}/${repo}, using common fallbacks:`,
+      sanitizeGitHubError(error),
+    );
+  }
+
+  for (const branch of [...new Set(fallbackBranches)]) {
     try {
       const response = await axios.get(
         `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`,

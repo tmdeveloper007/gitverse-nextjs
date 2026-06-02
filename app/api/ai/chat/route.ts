@@ -23,6 +23,15 @@ import {
 // Allowed roles in the conversation history
 const ALLOWED_MESSAGE_ROLES = new Set(["user", "model", "assistant"]);
 
+function parseKnowledgeArray(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
@@ -260,7 +269,7 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
         knowledgeContext += `Project Description: ${k.projectDescription}\n`;
       }
       if (k.architecturePrinciples) {
-        const ap = JSON.parse(k.architecturePrinciples);
+        const ap = parseKnowledgeArray(k.architecturePrinciples);
         if (ap.length)
           knowledgeContext += `Architecture Principles:\n- ${ap.join("\n- ")}\n`;
       }
@@ -271,7 +280,7 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
         });
       }
       if (k.onboardingNotes) {
-        const on = JSON.parse(k.onboardingNotes);
+        const on = parseKnowledgeArray(k.onboardingNotes);
         if (on.length)
           knowledgeContext += `Onboarding Notes:\n- ${on.join("\n- ")}\n`;
       }

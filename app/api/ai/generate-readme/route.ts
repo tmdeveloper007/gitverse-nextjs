@@ -181,7 +181,7 @@ Instructions:
       );
     }
     return NextResponse.json(
-      { error: error.message || "Failed to generate README" },
+      { error: "Failed to generate README" },
       { status: 500 },
     );
   }
