@@ -148,6 +148,11 @@ export async function GET(
       );
     }
 
+    const validatedError = validateFilePath(filePath);
+    if (validatedError) {
+      return NextResponse.json({ error: validatedError }, { status: 400 });
+    }
+
     const repository = await repositoryService.getRepository(id, user.userId);
 
     if (!repository) {
@@ -214,7 +219,18 @@ export async function GET(
       );
     }
 
+    const contentLengthHeader = response.headers.get("content-length");
+    if (contentLengthHeader) {
+      const size = parseInt(contentLengthHeader, 10);
+      if (size > 1024 * 1024) { // 1MB limit
+        return NextResponse.json({ error: "File size exceeds 1MB limit" }, { status: 400 });
+      }
+    }
+
     const content = await response.text();
+    if (content.length > 1024 * 1024) { // 1MB limit
+      return NextResponse.json({ error: "File size exceeds 1MB limit" }, { status: 400 });
+    }
 
     // Double-check content size after reading
     if (content.length > 1024 * 1024) {
