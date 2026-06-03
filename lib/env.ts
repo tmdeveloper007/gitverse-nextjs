@@ -9,8 +9,12 @@ const requiredEnvVars = [
 function shouldSkipEnvValidation() {
   return (
     process.env.NODE_ENV === "test" ||
+    // Allow skipping validation in local development to improve DX.
+    process.env.NODE_ENV === "development" ||
     process.env.CI === "true" ||
     process.env.GITHUB_ACTIONS === "true" ||
+    // Explicit opt-out for validation when needed
+    process.env.SKIP_ENV_VALIDATION === "true" ||
     process.env.NEXT_PHASE === "phase-production-build"
   );
 }

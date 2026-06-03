@@ -815,6 +815,18 @@
   }
 }
 
+@layer utilities {
+  body:not(.user-is-tabbing) :focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  body.user-is-tabbing :focus-visible {
+    outline: 2px solid #2563eb !important;
+    outline-offset: 4px !important;
+  }
+}
+
 @keyframes typing-cursor-blink {
   0%,
   50% {
