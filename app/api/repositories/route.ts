@@ -2,6 +2,7 @@ import {
   normalizeKnownRepoHttpUrl,
   normalizeTargetDirectory,
 } from "@/lib/utils/repositoryUtils";
+import { validateSafeUrl } from "@/lib/utils/ssrfValidator";
 import { NextRequest, NextResponse } from "next/server";
 import { countAttempts, recordAttempt } from "@/lib/services/rateLimitService";
 import {
@@ -16,15 +17,15 @@ import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTrig
 import { GitService } from "@/lib/services/gitService";
 import { logger } from "@/lib/logger";
 import { apiError, apiSuccess } from "@/lib/utils/apiResponse";
-import { getEphemeralSecret } from "@/lib/utils/analysisRunner";
 import { isValidGitScope } from "@/lib/utils/validators";
 function kickLocalRunner(request: NextRequest) {
   if (process.env.NODE_ENV === "production") return;
   const origin = new URL(request.url).origin;
-  const secret = process.env.ANALYSIS_RUNNER_SECRET || getEphemeralSecret();
+  const secret = process.env.ANALYSIS_RUNNER_SECRET;
+  if (!secret) return;
   void fetch(`${origin}/api/internal/run-analysis`, {
     method: "POST",
-    headers: secret ? { "x-analysis-runner-secret": secret } : undefined,
+    headers: { "x-analysis-runner-secret": secret },
   }).catch(() => {
     // Best-effort only.
   });
@@ -90,6 +91,14 @@ export async function POST(request: NextRequest) {
     if (!normalizedUrl) {
       return apiError(
         "Invalid repository URL. Use a full repository URL like https://github.com/owner/repo",
+        400,
+      );
+    }
+
+    const isSafe = await validateSafeUrl(normalizedUrl);
+    if (!isSafe) {
+      return apiError(
+        "Invalid repository URL. The URL resolves to an untrusted or private network address.",
         400,
       );
     }
