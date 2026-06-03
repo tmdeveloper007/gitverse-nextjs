@@ -68,7 +68,7 @@ export const RepositoryOverview = ({
   const readmePath: string | null = repositoryData?.readmePath ?? null;
 
   // Initialize module bookmarks hook
-  const { bookmarkedModules, toggleBookmark, removeBookmark } = useModuleBookmarks();
+  const { bookmarkedModules, removeBookmark } = useModuleBookmarks();
 
   // Calculate total lines of code from languages only
   const totalLines =

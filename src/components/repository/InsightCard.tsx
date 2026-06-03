@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui";
-import { InsightMetric } from "@/lib/repositoryInsights";
+import { InsightMetric } from "../../lib/repositoryInsights";
 import { TrendingUp, TrendingDown } from "lucide-react";
 
 interface InsightCardProps {

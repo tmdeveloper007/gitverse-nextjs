@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, EmptyState } from "@/components/ui";
 import { InsightCard } from "./InsightCard";
 import { RepositorySummaryCard } from "./RepositorySummaryCard";
-import { deriveRepositoryInsights } from "@/lib/repositoryInsights";
+import { deriveRepositoryInsights } from "../../lib/repositoryInsights";
 import { BarChart3 } from "lucide-react";
 
 interface RepositoryInsightsDashboardProps {
@@ -39,7 +39,6 @@ export function RepositoryInsightsDashboard({
             icon={BarChart3}
             title="No insights available"
             description="Repository data is still being analyzed. Check back soon."
-            compact
           />
         </CardContent>
       </Card>

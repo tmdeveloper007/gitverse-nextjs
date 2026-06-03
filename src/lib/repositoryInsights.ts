@@ -21,7 +21,7 @@ export function deriveRepositoryInsights(repositoryData: any): {
   const files = repositoryData?.files || [];
   const commits = repositoryData?.commits || [];
   const contributors = repositoryData?.contributors || [];
-  const languages = repositoryData?.languages || [];
+  
 
   // Calculate module distribution
   const moduleMap = new Map<string, { files: number; size: number; changes: number }>();
