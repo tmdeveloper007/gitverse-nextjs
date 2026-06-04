@@ -20,6 +20,7 @@ import {
   EmptyState,
 } from "@/components/ui";
 import { ContributionReadinessCard } from "@/components/repository/ContributionReadinessCard";
+import { ChangeImpactPredictor } from "@/components/repository/ChangeImpactPredictor";
 
 interface FileNode {
   name: string;
@@ -470,6 +471,14 @@ export const FileStructure = ({ repository }: FileStructureProps) => {
               <ContributionReadinessCard 
                 file={selectedFile} 
                 repository={repository}
+              />
+            </div>
+
+            {/* Change Impact Predictor */}
+            <div className="mb-8">
+              <ChangeImpactPredictor
+                repository={repository}
+                selectedFile={selectedFile}
               />
             </div>
 
