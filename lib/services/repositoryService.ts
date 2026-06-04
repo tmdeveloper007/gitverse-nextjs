@@ -4,6 +4,10 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import * as fs from "fs/promises";
+import {
+  invalidateCacheForCommit,
+  invalidateExpiredCacheEntries,
+} from "./geminiAnalysisCacheService";
 import { ttlCache, TTL, repoStatsCacheKey } from "../utils/ttlCache";
 
 /** Shape returned by getRepositoryStats / _fetchRepositoryStats. */
@@ -610,6 +614,8 @@ export class RepositoryService {
 
       // Cache invalidation (outside transaction — best-effort, non-critical)
       try {
+        await invalidateExpiredCacheEntries(repositoryId);
+
         const headCommit = await prisma.commit.findFirst({
           where: { repositoryId, branch: defaultBranch },
           orderBy: { committedAt: "desc" },
@@ -617,7 +623,7 @@ export class RepositoryService {
         });
 
         if (headCommit?.hash) {
-          await invalidateGeminiAnalysisCacheForRepository(repositoryId, headCommit.hash);
+          await invalidateCacheForCommit(repositoryId, headCommit.hash);
         }
       } catch (error) {
         console.warn("Gemini cache invalidation failed:", error);

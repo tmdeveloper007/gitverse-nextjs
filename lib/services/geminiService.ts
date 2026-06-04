@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
-import { getGeminiAnalysisCache, setGeminiAnalysisCache, hashGeminiPromptSeed } from "./geminiAnalysisCacheService";
+import { getGeminiAnalysisCache, setGeminiAnalysisCache } from "./geminiAnalysisCacheService";
+import { buildCacheKey } from "../utils/cacheKey";
+
+const CURRENT_MODEL_VERSION = "gemini-2.5-flash";
 
 export interface AIAnalysisRequest {
   repositoryId: number;
@@ -118,16 +121,17 @@ export class GeminiService {
       context,
     );
     
-    // Check cache if we have repository context
-    let promptHash: string | undefined;
+    let cacheKey: ReturnType<typeof buildCacheKey> | null = null;
     if (repositoryId && commitHash) {
-      promptHash = hashGeminiPromptSeed({ code, language, analysisType, context });
-      const cached = await getGeminiAnalysisCache({
+      cacheKey = buildCacheKey({
         repositoryId,
         commitHash,
         analysisType: `code-${analysisType}`,
-        promptHash,
+        modelVersion: CURRENT_MODEL_VERSION,
+        analysisScope: "full",
+        context: { code, language, analysisType, context },
       });
+      const cached = await getGeminiAnalysisCache(cacheKey);
       if (cached.hit && cached.result) {
         return cached.result;
       }
@@ -137,17 +141,11 @@ export class GeminiService {
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
-      
-      // Save to cache
-      if (repositoryId && commitHash && promptHash) {
-        await setGeminiAnalysisCache({
-          repositoryId,
-          commitHash,
-          analysisType: `code-${analysisType}`,
-          promptHash,
-        }, text, { model: "gemini-2.5-flash" });
+
+      if (cacheKey) {
+        await setGeminiAnalysisCache(cacheKey, text);
       }
-      
+
       return text;
     } catch (error: any) {
       console.error("Gemini analysis error:", error);

@@ -484,7 +484,8 @@ model GeminiAnalysisCache {
   commitHash     String    @map("commit_hash")
   analysisType   String    @map("analysis_type")
   promptHash     String    @map("prompt_hash")
-  model          String?
+  modelVersion   String    @default("unknown") @map("model_version")
+  analysisScope  String    @default("full") @map("analysis_scope")
   cachedResult   String    @map("cached_result") @db.Text
   createdAt      DateTime  @default(now()) @map("created_at")
   lastAccessedAt DateTime? @map("last_accessed_at")
@@ -492,9 +493,10 @@ model GeminiAnalysisCache {
 
   repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
 
-  @@unique([repositoryId, commitHash, analysisType, promptHash])
+  @@unique([repositoryId, commitHash, analysisType, promptHash, modelVersion, analysisScope])
   @@index([expiresAt])
   @@index([repositoryId])
+  @@index([modelVersion])
   @@map("gemini_analysis_cache")
 }
 
