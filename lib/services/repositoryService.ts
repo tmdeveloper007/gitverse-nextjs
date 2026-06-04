@@ -31,6 +31,7 @@ export interface AnalyzeRepositoryInput {
   description?: string;
   targetDirectory?: string;
   userId: number;
+  isPrivate?: boolean;
 }
 
 export type RepositoryAnalysisProgress = {
@@ -108,10 +109,19 @@ export class RepositoryService {
     let gitService: GitService | null = null;
 
     try {
+      // Check repository size before cloning
+      const MAX_REPO_SIZE = 500 * 1024 * 1024; // 500 MB limit
+      const token = await getGithubAccessToken(userId);
+      const remoteSize = await GitService.getRemoteRepositorySize(repository.url, token);
+      if (remoteSize !== null && remoteSize > MAX_REPO_SIZE) {
+        throw new Error(`Repository exceeds maximum allowed size of 500MB (${(remoteSize / 1024 / 1024).toFixed(2)}MB).`);
+      }
+
       // For README we don't need all branches; keep it lightweight.
       gitService = await GitService.cloneRepository(repository.url, tempDir, {
         depth: 1,
         noSingleBranch: false,
+        accessToken: token,
       });
 
       const scopedPath = repository.targetDirectory
@@ -163,15 +173,15 @@ export class RepositoryService {
     }
 
     const existingRepositoryName = await prisma.repository.findFirst({
-  where: {
-    name: input.name,
-    userId: input.userId,
-  },
-});
+      where: {
+        name: input.name,
+        userId: input.userId,
+      },
+    });
 
-if (existingRepositoryName) {
-  throw new Error("Repository with this name already exists");
-}
+    if (existingRepositoryName) {
+      throw new Error("Repository with this name already exists");
+    }
 
     const repository = await prisma.repository.create({
       data: {
@@ -181,6 +191,7 @@ if (existingRepositoryName) {
         targetDirectory: input.targetDirectory ?? null,
         userId: input.userId,
         status: "pending",
+        isPrivate: input.isPrivate ?? false,
       },
     });
 
@@ -245,6 +256,14 @@ if (existingRepositoryName) {
     try {
       checkAborted();
 
+      // Check repository size before cloning to prevent disk exhaustion DoS
+      const MAX_REPO_SIZE = 500 * 1024 * 1024; // 500 MB limit
+      const token = await getGithubAccessToken(userId);
+      const remoteSize = await GitService.getRemoteRepositorySize(repository.url, token);
+      if (remoteSize !== null && remoteSize > MAX_REPO_SIZE) {
+        throw new Error(`Repository exceeds maximum allowed size of 500MB (${(remoteSize / 1024 / 1024).toFixed(2)}MB).`);
+      }
+
       // Clone repository
       await report({
         progressPercent: 5,
@@ -252,6 +271,7 @@ if (existingRepositoryName) {
       });
       gitService = await GitService.cloneRepository(repository.url, tempDir, {
         signal,
+        accessToken: token,
         onProgress: (pct, msg) => {
           const analysisPct = 5 + Math.round((pct / 100) * 3);
           report({ progressPercent: Math.min(8, analysisPct), progressMessage: msg });
@@ -273,22 +293,22 @@ if (existingRepositoryName) {
       checkAborted();
 
       await report({ progressPercent: 9, progressMessage: "Checking AI context configuration" });
-      
+
       let knowledgeJson: ParsedRepositoryKnowledge | undefined = undefined;
       let knowledgeMd: ParsedRepositoryKnowledge | undefined = undefined;
-      
+
       try {
         const jsonPath = path.join(tempDir, ".gitverse.json");
         const jsonContent = await fs.readFile(jsonPath, "utf8");
         knowledgeJson = gitverseConfigParser.parseJson(jsonContent);
       } catch (e) { /* Ignore missing or invalid */ }
-      
+
       try {
         const mdPath = path.join(tempDir, ".gitverse.md");
         const mdContent = await fs.readFile(mdPath, "utf8");
         knowledgeMd = gitverseConfigParser.parseMarkdown(mdContent);
       } catch (e) { /* Ignore missing or invalid */ }
-      
+
       const parsedKnowledge = gitverseConfigParser.mergeKnowledge(knowledgeJson, knowledgeMd);
 
       checkAborted();
@@ -550,7 +570,7 @@ if (existingRepositoryName) {
           },
         });
       });
-      
+
       // Save repository knowledge if found
       try {
         await repositoryKnowledgeService.upsertKnowledge(repositoryId, parsedKnowledge);
@@ -592,6 +612,138 @@ if (existingRepositoryName) {
         await fs.rm(tempDir, { recursive: true, force: true }).catch(() => null);
       }
     }
+  }
+
+  /**
+   * Generates architecture map iteratively for massive repositories
+   */
+  async generateArchitectureIteratively(
+    repositoryId: number,
+    userId: number,
+    opts?: { onProgress?: RepositoryAnalysisProgressReporter }
+  ) {
+    const repository = await prisma.repository.findFirst({
+      where: { id: repositoryId, userId },
+      include: {
+        files: true,
+        commits: { take: 50 },
+        languages: { take: 20 },
+        contributors: { take: 20 }
+      }
+    });
+
+    if (!repository) {
+      throw new Error("Repository not found");
+    }
+
+    const report = async (update: RepositoryAnalysisProgress) => {
+      if (opts?.onProgress) {
+        try { await opts.onProgress(update); } catch { }
+      }
+    };
+
+    await report({ progressPercent: 10, progressMessage: "Grouping files into chunks..." });
+
+    const flatFiles = repository.files || [];
+    const chunkSize = 100;
+    const chunks: Array<typeof flatFiles> = [];
+
+    for (let i = 0; i < flatFiles.length; i += chunkSize) {
+      chunks.push(flatFiles.slice(i, i + chunkSize));
+    }
+
+    if (chunks.length === 0) {
+      await report({ progressPercent: 100, progressMessage: "No files to analyze." });
+      return;
+    }
+
+    const geminiService = getGeminiService();
+    let completedChunks = 0;
+    const totalChunks = chunks.length;
+
+    // Clear previous chunks for this repo
+    await prisma.repositoryArchitectureChunk.deleteMany({
+      where: { repositoryId }
+    });
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      await report({
+        progressPercent: 10 + Math.floor((completedChunks / totalChunks) * 60),
+        progressMessage: `Analyzing chunk ${i + 1} of ${totalChunks}...`
+      });
+
+      let aiResponse = await geminiService.analyzeRepository({
+        repositoryId,
+        type: "architecture-chunk",
+        context: {
+          fileTree: chunk.map((f: any) => f.path).join("\n"),
+        }
+      });
+
+      aiResponse = aiResponse
+        .replace(/^[\s\n]*```(?:markdown|md)?[\s\n]*/i, "")
+        .replace(/[\s\n]*```[\s\n]*$/i, "")
+        .trim();
+
+      await prisma.repositoryArchitectureChunk.create({
+        data: {
+          repositoryId,
+          chunkPath: `chunk-${i}`,
+          summary: aiResponse
+        }
+      });
+
+      completedChunks++;
+    }
+
+    await report({ progressPercent: 70, progressMessage: "Synthesizing final architecture map..." });
+
+    const savedChunks = await prisma.repositoryArchitectureChunk.findMany({
+      where: { repositoryId },
+      orderBy: { id: "asc" }
+    });
+
+    const combinedSummaries = savedChunks.map(c => `Chunk ${c.chunkPath}:\n${c.summary}`).join("\n\n---\n\n");
+
+    let finalAiResponse = await geminiService.analyzeRepository({
+      repositoryId,
+      type: "architecture-document",
+      context: {
+        fileTree: `Combined Intermediate Summaries:\n\n${combinedSummaries}`,
+        commits: repository.commits.map((c) => ({
+          message: c.message,
+          author: c.authorName,
+          date: c.committedAt.toISOString(),
+        })),
+        languages: repository.languages.map((l) => ({
+          name: l.name,
+          percentage: l.percentage,
+        })),
+        contributors: repository.contributors.map((c) => ({
+          name: c.name,
+          commits: c.commits,
+        })),
+      }
+    });
+
+    finalAiResponse = finalAiResponse
+      .replace(/^[\s\n]*```(?:markdown|md)?[\s\n]*/i, "")
+      .replace(/[\s\n]*```[\s\n]*$/i, "")
+      .trim();
+
+    await prisma.repositoryKnowledge.upsert({
+      where: { repositoryId },
+      create: {
+        repositoryId,
+        projectDescription: finalAiResponse
+      },
+      update: {
+        projectDescription: finalAiResponse
+      }
+    });
+
+    await report({ progressPercent: 100, progressMessage: "Completed architecture generation." });
   }
 
   /**
