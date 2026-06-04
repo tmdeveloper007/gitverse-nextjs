@@ -25,23 +25,28 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
+  Button,
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent,
+  EmptyState,
+  Input,
   Skeleton,
   CopyToClipboard,
 } from "@/components/ui";
 import { BeginnerModeToggle } from "@/components/repository/BeginnerModeToggle";
 import { BeginnerGuidanceCard } from "@/components/repository/BeginnerGuidanceCard";
 import { BeginnerQuestionsPanel } from "@/components/repository/BeginnerQuestionsPanel";
+import { FirstPRSimulator } from "@/components/repository/FirstPRSimulator";
 import { QuickStartChecklist } from "@/components/repository/QuickStartChecklist";
 import { FolderImportanceGuide } from "@/components/repository/FolderImportanceGuide";
 import { SavedModulesPanel } from "@/components/repository/SavedModulesPanel";
 import { ModuleComparisonTool } from "@/components/repository/ModuleComparisonTool";
 import { RepositoryInsightsDashboard } from "@/components/repository/RepositoryInsightsDashboard";
 import { useModuleBookmarks } from "@/hooks/useModuleBookmarks";
+import { IssueData, RepositoryMetadata } from "@/types/firstPRSimulator";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -225,6 +230,57 @@ export const RepositoryOverview = ({
   };
 
   const [isBeginnerMode, setIsBeginnerMode] = useState(false);
+  const [issueTitle, setIssueTitle] = useState("");
+  const [issueBody, setIssueBody] = useState("");
+  const [selectedIssue, setSelectedIssue] = useState<IssueData | null>(null);
+
+  const sampleIssue = useMemo(() => {
+    if (!repositoryData?.issues?.length) return null;
+    const issue = repositoryData.issues[0];
+    return {
+      id: issue.id?.toString?.() || "sample-issue",
+      title: issue.title || "",
+      body: issue.body || issue.description || "",
+      labels: issue.labels || [],
+    } as IssueData;
+  }, [repositoryData?.issues]);
+
+  const issueToSimulate = selectedIssue || sampleIssue;
+
+  const repositoryMetadata = useMemo<RepositoryMetadata>(() => ({
+    id: repositoryData?.id,
+    name: repositoryData?.name,
+    files: repositoryData?.files,
+    languages: repositoryData?.languages,
+    size: repositoryData?.size,
+    openIssues: repositoryData?.openIssues,
+    commits: repositoryData?.commits,
+  }), [repositoryData]);
+
+  const hasIssueInput = Boolean(issueTitle.trim() || issueBody.trim());
+
+  const buildManualIssue = (): IssueData | null => {
+    if (!issueTitle.trim() && !issueBody.trim()) return null;
+    return {
+      id: "manual-issue",
+      title: issueTitle.trim() || "First PR issue",
+      body: issueBody.trim() || "",
+      labels: [],
+    };
+  };
+
+  const handleRunSimulation = () => {
+    const issue = buildManualIssue();
+    if (issue) {
+      setSelectedIssue(issue);
+    }
+  };
+
+  const handleResetSimulation = () => {
+    setIssueTitle("");
+    setIssueBody("");
+    setSelectedIssue(null);
+  };
 
   const MODULE_GUIDANCE: Record<
     string,
@@ -576,6 +632,65 @@ export const RepositoryOverview = ({
       </div>
 
       <div className="space-y-4 transition-all duration-300">
+        <Card className="glass border border-border/60 p-4">
+          <CardHeader>
+            <CardTitle>First PR Simulator</CardTitle>
+            <CardDescription>
+              Generate a recommended first PR plan from a repository issue or a custom issue description.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 lg:grid-cols-[1fr_1.5fr]">
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-muted-foreground">Issue title</label>
+                <Input
+                  value={issueTitle}
+                  onChange={(event) => setIssueTitle(event.target.value)}
+                  placeholder="e.g. Fix broken repository filtering"
+                />
+              </div>
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-muted-foreground">Issue description</label>
+                <textarea
+                  value={issueBody}
+                  onChange={(event) => setIssueBody(event.target.value)}
+                  className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  placeholder="Describe the issue and expected behavior..."
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={handleRunSimulation}
+                  disabled={!hasIssueInput}
+                >
+                  Simulate issue
+                </Button>
+                {sampleIssue && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setSelectedIssue(sampleIssue)}
+                  >
+                    Use first available issue
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  onClick={handleResetSimulation}
+                >
+                  Reset
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground max-w-xl">
+                The simulator uses issue text and repository structure to recommend a starter file set, difficulty, and test focus.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <FirstPRSimulator issue={issueToSimulate} repository={repositoryMetadata} />
+
         <BeginnerModeToggle
           enabled={isBeginnerMode}
           onToggle={() => setIsBeginnerMode(!isBeginnerMode)}
