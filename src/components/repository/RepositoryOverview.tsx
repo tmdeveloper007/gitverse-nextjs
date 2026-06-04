@@ -29,13 +29,15 @@ import { BeginnerModeToggle } from "@/components/repository/BeginnerModeToggle";
 import { BeginnerGuidanceCard } from "@/components/repository/BeginnerGuidanceCard";
 import { BeginnerQuestionsPanel } from "@/components/repository/BeginnerQuestionsPanel";
 import { FirstPRSimulator } from "@/components/repository/FirstPRSimulator";
+import { ContributionPathGenerator } from "@/components/repository/ContributionPathGenerator";
 import { QuickStartChecklist } from "@/components/repository/QuickStartChecklist";
 import { FolderImportanceGuide } from "@/components/repository/FolderImportanceGuide";
 import { SavedModulesPanel } from "@/components/repository/SavedModulesPanel";
 import { ModuleComparisonTool } from "@/components/repository/ModuleComparisonTool";
 import { RepositoryInsightsDashboard } from "@/components/repository/RepositoryInsightsDashboard";
 import { useModuleBookmarks } from "@/hooks/useModuleBookmarks";
-import { IssueData, RepositoryMetadata } from "@/types/firstPRSimulator";
+import { IssueData } from "@/types/firstPRSimulator";
+import { RepositoryAnalysisData } from "@/types/contributionPath";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -123,14 +125,17 @@ export const RepositoryOverview = ({
 
   const issueToSimulate = selectedIssue || sampleIssue;
 
-  const repositoryMetadata = useMemo<RepositoryMetadata>(() => ({
+  const repositoryMetadata = useMemo<RepositoryAnalysisData>(() => ({
     id: repositoryData?.id,
     name: repositoryData?.name,
+    description: repositoryData?.description,
+    url: repositoryData?.url,
+    size: repositoryData?.size,
     files: repositoryData?.files,
     languages: repositoryData?.languages,
-    size: repositoryData?.size,
-    openIssues: repositoryData?.openIssues,
     commits: repositoryData?.commits,
+    contributors: repositoryData?.contributors,
+    issues: repositoryData?.issues,
   }), [repositoryData]);
 
   const hasIssueInput = Boolean(issueTitle.trim() || issueBody.trim());
@@ -545,6 +550,8 @@ export const RepositoryOverview = ({
         </Card>
 
         <FirstPRSimulator issue={issueToSimulate} repository={repositoryMetadata} />
+
+        <ContributionPathGenerator repository={repositoryMetadata} />
 
         <BeginnerModeToggle
           enabled={isBeginnerMode}
