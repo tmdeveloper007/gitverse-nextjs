@@ -121,16 +121,22 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
 
   const filteredBranches = branches.filter((branch) => {
     switch (filter) {
-      case "active":
-        // Show all branches (active means all branches, not filtered)
-        return true;
-      case "stale":
+      case "active": {
+        const diffInDays = Math.floor(
+          (new Date().getTime() -
+            new Date(branch.lastCommit.timestamp).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+        return diffInDays <= 30;
+      }
+      case "stale": {
         const diffInDays = Math.floor(
           (new Date().getTime() -
             new Date(branch.lastCommit.timestamp).getTime()) /
             (1000 * 60 * 60 * 24)
         );
         return diffInDays > 30;
+      }
       case "merged":
         return branch.ahead === 0 && branch.behind > 0;
       default:
