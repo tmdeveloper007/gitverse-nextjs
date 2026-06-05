@@ -1,6 +1,6 @@
 import { FileText, Plus, Minus, GitMerge, Tag } from "lucide-react";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 interface FileChange {
   path: string;
