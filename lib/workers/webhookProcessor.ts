@@ -1,6 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { isInternalWorkerAuthorized } from "@/lib/utils/internalAuth";
 import { GitHubAppService } from "@/lib/services/githubAppService";
 import { GitHubService } from "@/lib/services/githubService";
 import {
@@ -21,41 +19,13 @@ import { GitHubChecksService } from "@/lib/services/github-checks";
 import { PremergePolicyEngine } from "@/lib/services/premerge-policy-engine";
 import { CheckSummaryService } from "@/lib/services/check-summary";
 import { CheckRecoveryService } from "@/lib/services/check-recovery";
-import { webhookQueue } from "@/lib/services/webhook-queue";
 import { PRImpactAnalysisService } from "@/lib/services/prImpactAnalysisService";
 import { RepositorySyncQueue } from "@/lib/services/repositorySyncQueue";
 import { classifyRetry } from "@/lib/utils/retry";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
 
-export const runtime = "nodejs";
-export const maxDuration = 300; // 5 minutes max duration for Vercel
-
-export async function POST(request: NextRequest) {
-  const workerId = request.headers.get("x-worker-id") || "unknown";
-  const rl = await checkRateLimit(workerId, RATE_LIMITS.WORKER_WEBHOOK);
-  if (!rl.allowed) return rateLimitResponse(rl, "Worker rate limit exceeded");
-
-  const baseUrl = process.env.NEXTAUTH_URL || `http://${request.headers.get("host") || "localhost:3000"}`;
-  
-  try {
-    return await handlePost(request);
-  } finally {
-    // Crucial: Drain the queue by picking up the next pending jobs
-    webhookQueue.triggerWorkers(baseUrl).catch((err: any) => {
-      console.error("[Worker] Failed to trigger next jobs:", err);
-    });
-  }
-}
-
-async function handlePost(request: NextRequest) {
-  if (!isInternalWorkerAuthorized(request.headers.get("authorization"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { eventId } = await request.json().catch(() => ({}));
-
+export async function processWebhookJob(eventId: string) {
   if (!eventId) {
-    return NextResponse.json({ error: "eventId is required" }, { status: 400 });
+    throw new Error("eventId is required");
   }
 
   const webhookEvent = await prisma.webhookEvent.findUnique({
@@ -63,14 +33,12 @@ async function handlePost(request: NextRequest) {
   });
 
   if (!webhookEvent) {
-    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    throw new Error("Event not found");
   }
 
   if (webhookEvent.status !== "pending") {
-    return NextResponse.json(
-      { ok: true, ignored: true, reason: "already_processed" },
-      { status: 200 }
-    );
+    // Already processed, ignore
+    return { ok: true, ignored: true, reason: "already_processed" };
   }
 
   // Mark as processing
@@ -115,7 +83,7 @@ async function handlePost(request: NextRequest) {
         where: { id: eventId },
         data: { status: "completed", error: "Repo not enabled" },
       });
-      return NextResponse.json({ ok: true, ignored: true, reason: "repo_not_enabled" });
+      return { ok: true, ignored: true, reason: "repo_not_enabled" };
     }
 
     const app = new GitHubAppService();
@@ -132,7 +100,7 @@ async function handlePost(request: NextRequest) {
         where: { id: eventId },
         data: { status: "completed", error: "AI analysis is globally disabled" },
       });
-      return NextResponse.json({ ok: true, ignored: true, reason: "ai_disabled" });
+      return { ok: true, ignored: true, reason: "ai_disabled" };
     }
 
     // 2. Installation Quota Enforcement
@@ -153,7 +121,7 @@ async function handlePost(request: NextRequest) {
           console.error("Failed to post quota warning comment:", e);
         }
       }
-      return NextResponse.json({ ok: true, ignored: true, reason: "quota_exhausted" });
+      return { ok: true, ignored: true, reason: "quota_exhausted" };
     }
 
     if (webhookEvent.event === "push") {
@@ -164,7 +132,7 @@ async function handlePost(request: NextRequest) {
         data: { status: "completed" },
       });
 
-      return NextResponse.json({ ok: true, message: enqueued ? "Sync job enqueued" : "Duplicate sync job ignored" });
+      return { ok: true, message: enqueued ? "Sync job enqueued" : "Duplicate sync job ignored" };
     }
 
     if (webhookEvent.event === "issues") {
@@ -193,7 +161,7 @@ async function handlePost(request: NextRequest) {
         data: { status: "completed" },
       });
 
-      return NextResponse.json({ ok: true, message: "Issue triaged" });
+      return { ok: true, message: "Issue triaged" };
     }
 
     const pr = await github.getPullRequest(owner, repo, number);
@@ -253,7 +221,7 @@ async function handlePost(request: NextRequest) {
           where: { id: eventId },
           data: { status: "completed", error: "Already reviewed (deduped)" },
         });
-        return NextResponse.json({ ok: true, ignored: true, reason: "already_reviewed" });
+        return { ok: true, ignored: true, reason: "already_reviewed" };
       }
       throw e;
     }
@@ -387,7 +355,7 @@ async function handlePost(request: NextRequest) {
         data: { status: "completed" },
       });
 
-      return NextResponse.json({ ok: true, posted: postedUrl, postError });
+      return { ok: true, posted: postedUrl, postError };
     } catch (innerError: any) {
       if (reviewRow) {
         await prisma.pRReview.delete({ where: { id: reviewRow.id } }).catch(() => null);
@@ -424,9 +392,6 @@ async function handlePost(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(
-      { error: "Failed to process event", details: errorDetails },
-      { status: 500 }
-    );
+    throw error;
   }
 }
