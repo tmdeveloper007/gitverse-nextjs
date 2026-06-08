@@ -105,10 +105,12 @@ export class QuotaService {
    * and normalizing whitespace.
    */
   static sanitizeKey(key: string): string {
+    // Only trim leading/trailing whitespace. Internal whitespace is preserved
+    // to avoid corrupting keys that may legitimately contain spaces (e.g.,
+    // multi-word identifiers). Control characters are still stripped.
     return key
       .replace(/[\x00-\x1f\x7f]/g, "") // Remove control characters
-      .trim()                            // Trim whitespace first
-      .replace(/\s+/g, ":");             // Replace remaining internal whitespace with colon
+      .trim();
   }
 
   /**
