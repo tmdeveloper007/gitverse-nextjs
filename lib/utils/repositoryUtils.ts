@@ -117,8 +117,10 @@ export function calculateRepositoryMetrics(data: {
   const maxEntropy = Math.log2(data.contributors.length)
   const contributorDiversity = maxEntropy > 0 ? (entropy / maxEntropy) * 100 : 0
 
-  // Code quality score (placeholder - would need real linting/analysis)
-  const codeQuality = 75 + Math.random() * 20 // Mock value between 75-95
+  // Code quality score (placeholder - requires real linting/analysis integration)
+  // Deterministic fallback: returns null until a real linting pipeline is integrated.
+  // Returning a consistent value avoids dashboard flickering caused by random values.
+  const codeQuality = null as number | null
 
   return {
     totalLines,
