@@ -24,14 +24,15 @@ export class SettingsAuditService {
         data: {
           userId: entry.userId,
           action: entry.action,
-          details: JSON.stringify({
+          resource: "Settings",
+          details: {
             repositoryId: entry.repositoryId,
             organizationId: entry.organizationId,
             previousValue: entry.previousValue,
             newValue: entry.newValue,
             ipAddress: entry.ipAddress,
             timestamp: new Date().toISOString(),
-          }),
+          },
         },
       });
 
@@ -58,7 +59,8 @@ export class SettingsAuditService {
     return prisma.auditLog.findMany({
       where: {
         details: {
-          contains: `"repositoryId":${repositoryId}`,
+          path: ["repositoryId"],
+          equals: repositoryId,
         },
       },
       orderBy: { createdAt: "desc" },
@@ -76,7 +78,8 @@ export class SettingsAuditService {
     return prisma.auditLog.findMany({
       where: {
         details: {
-          contains: `"organizationId":${organizationId}`,
+          path: ["organizationId"],
+          equals: organizationId,
         },
       },
       orderBy: { createdAt: "desc" },
