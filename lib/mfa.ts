@@ -164,7 +164,7 @@ export function buildOtpAuthUri(
   const params = new URLSearchParams({
     secret,
     issuer,
-    algorithm: "SHA1",
+    algorithm: "SHA256",
     digits: String(TOTP_DIGITS),
     period: String(TOTP_STEP),
   });
