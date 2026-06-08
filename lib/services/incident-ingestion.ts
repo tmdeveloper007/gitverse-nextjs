@@ -59,7 +59,7 @@ export class IncidentIngestionService {
     const incident = payload.messages?.[0]?.incident;
     return {
       id: incident?.id || `pd-${Date.now()}`,
-      title: incident?.title || "PagerDuty Incident",
+      title: (incident?.title?.trim() && incident.title.length > 0) ? incident.title : "PagerDuty Incident",
       severity: this.mapSeverity(incident?.urgency),
       affectedService: incident?.service?.summary,
       timestamp: incident?.created_at || new Date().toISOString(),
