@@ -19,6 +19,11 @@ export async function DELETE(request: NextRequest) {
       data: { tokenVersion: { increment: 1 }, passwordChangedAt: new Date() },
     });
 
+    // Delete all existing sessions for this user to fully terminate them
+    await prisma.session.deleteMany({
+      where: { userId: user.userId },
+    });
+
     const response = NextResponse.json({
       message: "All sessions terminated successfully",
     });
