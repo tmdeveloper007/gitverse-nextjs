@@ -61,3 +61,5 @@ describe('apiError', () => {
     });
   });
 });
+
+// Additional test coverage: edge case with empty message
