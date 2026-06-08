@@ -211,6 +211,7 @@ export function rateLimitResponse(
     {
       status: 429,
       headers: {
+        "Retry-After": String(Math.ceil((result.resetAt - Date.now()) / 1000)),
         "X-RateLimit-Limit": String(result.limit),
         "X-RateLimit-Remaining": String(result.remaining),
         "X-RateLimit-Reset": String(Math.ceil(result.resetAt / 1000)),
