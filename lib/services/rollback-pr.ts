@@ -16,6 +16,8 @@ export class RollbackPrService {
   ): Promise<RollbackResult> {
     console.log(`[RollbackPr] Starting rollback for PR #${correlation.likelyPrNumber}`);
 
+    // Guard: validate likelyPrNumber before creating a GitHub PR
+    // This prevents invalid API calls when correlation fails or returns null
     if (!correlation.likelyPrNumber) {
       return {
         success: false,
