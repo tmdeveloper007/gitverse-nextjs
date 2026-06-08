@@ -39,5 +39,11 @@ export function parseIncidentTarget(searchParams: URLSearchParams):
     return null;
   }
 
+  // GitHub requires at least one letter in owner and repo names.
+  // Reject purely numeric strings (e.g., "12345") which GitHub doesn't support.
+  if (!/[a-zA-Z]/.test(owner) || !/[a-zA-Z]/.test(repo)) {
+    return null;
+  }
+
   return { installationId, owner, repo };
 }
