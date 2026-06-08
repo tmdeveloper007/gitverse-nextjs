@@ -52,8 +52,9 @@ export async function POST(req: NextRequest) {
     
     // In a real scenario, we'd determine source via headers (e.g., x-sentry-trace, x-datadog-trace-id)
     const sourceHeader = req.headers.get("x-incident-source") || "generic";
-    const source = ["sentry", "datadog", "pagerduty"].includes(sourceHeader) 
-      ? (sourceHeader as any) 
+    const validSources = ["sentry", "datadog", "pagerduty"] as const;
+    const source: typeof validSources[number] | "generic" = validSources.includes(sourceHeader as typeof validSources[number])
+      ? (sourceHeader as typeof validSources[number])
       : "generic";
 
     console.log(`[WebhookRoute] Received incident webhook from ${source}`);
