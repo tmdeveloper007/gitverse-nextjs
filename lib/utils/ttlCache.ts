@@ -46,7 +46,10 @@ class TtlCache {
   constructor() {
     // Only schedule the sweep in a real Node.js environment (not during
     // Next.js build-time static analysis or edge runtime).
+    // Can be disabled via TTL_CACHE_SWEEP_ENABLED=false for local development.
+    const sweepEnabled = process.env.TTL_CACHE_SWEEP_ENABLED !== "false";
     if (
+      sweepEnabled &&
       typeof setInterval !== "undefined" &&
       typeof process !== "undefined" &&
       process.env.NODE_ENV !== "test"
@@ -67,6 +70,9 @@ class TtlCache {
    * Overwrites any existing entry for the same key.
    */
   set<T>(key: string, value: T, ttlMs: number): void {
+    if (typeof ttlMs !== "number" || !Number.isFinite(ttlMs) || ttlMs <= 0) {
+      return; // Silently ignore invalid TTL — don't store entries that expire immediately
+    }
     this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
   }
 
