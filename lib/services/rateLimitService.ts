@@ -1,6 +1,16 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 
+/**
+ * Rate Limit Service
+ *
+ * Note: The `prisma.loginAttempt` table is used for ALL attempt types
+ * (LOGIN, SIGNUP, CHANGE_PASSWORD, DELETE_ACCOUNT, REPOSITORY_ANALYSIS,
+ * ANALYSIS_RUNNER) — not just login attempts. The table name is historical;
+ * the `type` field distinguishes between operations. This design consolidates
+ * all rate limiting in one table for simplicity, at the cost of naming clarity.
+ */
+
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 let lastCleanupAt = 0;
 
@@ -26,7 +36,7 @@ export function getClientIp(request: NextRequest): string {
   }
   const realIp = request.headers.get("x-real-ip");
   if (realIp && realIp !== "unknown") return realIp;
-  return request.ip ?? "unknown";
+  return request.ip ?? process.env.RATE_LIMIT_IP_FALLBACK ?? "unknown";
 }
 
 async function maybeCleanupStaleAttempts() {
