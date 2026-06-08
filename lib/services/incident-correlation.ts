@@ -80,6 +80,8 @@ Provide ONLY the valid JSON object and nothing else.
     } catch (error) {
       console.error("[IncidentCorrelation] Failed to correlate incident:", error);
       return {
+        likelyPrNumber: null,
+        likelyCommitSha: null,
         impactedFiles: [],
         impactedServices: [],
         confidenceScore: 0,
