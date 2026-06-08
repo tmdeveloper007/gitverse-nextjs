@@ -44,29 +44,8 @@ function kickProductionWorker() {
   });
 }
 
-function normalizeGitHubRepoUrl(input: string): string | null {
-  const trimmed = input.trim();
 
-  const patterns = [
-    /^https:\/\/github\.com\/([^/\s]+)\/([^/\s#?]+?)(?:\.git)?\/?$/i,
-    /^http:\/\/github\.com\/([^/\s]+)\/([^/\s#?]+?)(?:\.git)?\/?$/i,
-    /^git@github\.com:([^/\s]+)\/([^/\s#?]+?)(?:\.git)?$/i,
-    /^ssh:\/\/git@github\.com\/([^/\s]+)\/([^/\s#?]+?)(?:\.git)?$/i,
-  ];
 
-  for (const pattern of patterns) {
-    const match = trimmed.match(pattern);
-
-    if (match) {
-      const owner = match[1];
-      const repo = match[2];
-
-      return `https://github.com/${owner}/${repo}`;
-    }
-  }
-
-  return null;
-}
 
 export async function POST(request: NextRequest) {
   try {
