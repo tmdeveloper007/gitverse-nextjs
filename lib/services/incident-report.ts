@@ -13,7 +13,7 @@ export class IncidentReportService {
 ## GitVerse Incident Response
 
 **Incident:** ${incident.title}
-**Severity:** ${incident.severity.toUpperCase()}
+**Severity:** ${(incident.severity ?? "medium").toUpperCase()}
 **Likely Source:** PR #${correlation.likelyPrNumber || "Unknown"}
 **Confidence:** ${correlation.confidenceScore}%
 
