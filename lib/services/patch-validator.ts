@@ -20,7 +20,13 @@ export class PatchValidatorService {
     // Attempt to parse the patched content if it's a TS/JS file
     if (fullPatch.file.endsWith(".ts") || fullPatch.file.endsWith(".tsx") || fullPatch.file.endsWith(".js") || fullPatch.file.endsWith(".jsx")) {
       const lines = originalContent.split("\n");
-      const startLine = (fullPatch.startLine || fullPatch.endLine) - 1;
+      const endLine = fullPatch.endLine;
+      const startLineRaw = fullPatch.startLine ?? endLine;
+      if (typeof startLineRaw !== "number" || typeof endLine !== "number" || startLineRaw <= 0 || endLine <= 0) {
+        fullPatch.status = "invalid";
+        return fullPatch;
+      }
+      const startLine = startLineRaw - 1;
       const endLine = fullPatch.endLine - 1;
       
       const patchedLines = [
