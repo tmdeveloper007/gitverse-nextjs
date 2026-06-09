@@ -1,5 +1,11 @@
-import { GitBranch, Clock, User, CheckCircle, GitCommit } from "lucide-react";
-import { Card, EmptyState } from "@/components/ui";
+import { GitBranch, Clock, User, CheckCircle, GitCommit, ChevronDown } from "lucide-react";
+import { Card } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 
 interface Branch {
@@ -14,6 +20,7 @@ interface Branch {
     author: string;
     timestamp: string;
   };
+  lastCommitAt?: string;
   ahead: number;
   behind: number;
   commits: BranchCommit[];
@@ -23,25 +30,63 @@ interface BranchCommit {
   hash: string;
   message: string;
   author: string;
+  authorName?: string;
   timestamp: string;
   branch: string;
   parents: string[];
   isMerge: boolean;
 }
 
+export interface RepositoryBranch {
+  id: string | number;
+  name: string;
+  isDefault?: boolean;
+  isProtected?: boolean;
+  lastCommitAt?: string | Date;
+}
+
+export interface RepositoryCommit {
+  id?: string | number;
+  hash?: string;
+  shortHash?: string;
+  message?: string;
+  authorName?: string;
+  committedAt?: string | Date;
+  createdAt?: string | Date;
+  branch?: string;
+  parents?: string[];
+  isMerge?: boolean;
+}
+
 interface BranchVisualizationProps {
-  repository?: any;
+  repository?: {
+    branches?: RepositoryBranch[];
+    commits?: RepositoryCommit[];
+  };
 }
 
 type FilterType = "all" | "active" | "stale" | "merged";
 
+const toSafeIso = (value?: string | Date) => {
+  if (!value) return new Date().toISOString();
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+};
+
+const getBranchAgeInDays = (timestamp: string | Date) => {
+  return Math.floor(
+    (new Date().getTime() - new Date(timestamp).getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+};
+
 export function BranchVisualization({ repository }: BranchVisualizationProps) {
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
-  const [filter, setFilter] = useState<FilterType>("active");
+  const [filter, setFilter] = useState<FilterType>("all");
 
   // Use real branches from repository or empty array
   const branches: Branch[] =
-    repository?.branches?.map((branch: any) => ({
+    repository?.branches?.map((branch: RepositoryBranch) => ({
       id: branch.id.toString(),
       name: branch.name,
       isDefault: branch.isDefault || false,
@@ -51,7 +96,7 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
         hash: "",
         message: "",
         author: "",
-        timestamp: branch.lastCommitAt || new Date().toISOString(),
+        timestamp: toSafeIso(branch.lastCommitAt),
       },
       ahead: 0,
       behind: 0,
@@ -83,16 +128,12 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
 
   const filteredBranches = branches.filter((branch) => {
     switch (filter) {
-      case "active":
-        // Show all branches (active means all branches, not filtered)
-        return true;
-      case "stale":
-        const diffInDays = Math.floor(
-          (new Date().getTime() -
-            new Date(branch.lastCommit.timestamp).getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
-        return diffInDays > 30;
+      case "active": {
+        return getBranchAgeInDays(branch.lastCommit.timestamp) <= 30;
+      }
+      case "stale": {
+        return getBranchAgeInDays(branch.lastCommit.timestamp) > 30;
+      }
       case "merged":
         return branch.ahead === 0 && branch.behind > 0;
       default:
@@ -110,16 +151,6 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
     return "bg-green-500/20 text-green-500 border-green-500/30";
   };
 
-  if (branches.length === 0) {
-    return (
-      <EmptyState
-        icon={GitBranch}
-        title="No branches found"
-        description="We couldn't find any branches in this repository."
-      />
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -134,16 +165,18 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterType)}
-            className="glass px-4 py-2 rounded-lg hover:bg-white/10 transition-all duration-300 cursor-pointer"
-          >
-            <option value="all">All branches</option>
-            <option value="active">Active</option>
-            <option value="stale">Stale</option>
-            <option value="merged">Merged</option>
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="glass px-4 py-2 rounded-lg hover:bg-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 outline-none">
+              {filter === "all" ? "All branches" : filter.charAt(0).toUpperCase() + filter.slice(1)}
+              <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="glass">
+              <DropdownMenuItem onClick={() => setFilter("all")} className="cursor-pointer">All branches</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter("active")} className="cursor-pointer">Active</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter("stale")} className="cursor-pointer">Stale</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter("merged")} className="cursor-pointer">Merged</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -194,14 +227,9 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
             <div>
               <p className="text-2xl font-bold">
                 {
-                  branches.filter((b) => {
-                    const days = Math.floor(
-                      (new Date().getTime() -
-                        new Date(b.lastCommit.timestamp).getTime()) /
-                        (1000 * 60 * 60 * 24)
-                    );
-                    return days > 30;
-                  }).length
+                  branches.filter(
+                    (b) => getBranchAgeInDays(b.lastCommit.timestamp) > 30
+                  ).length
                 }
               </p>
               <p className="text-xs text-muted-foreground">Stale Branches</p>
@@ -306,11 +334,22 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
             <div className="space-y-4">
               {(repository?.commits || [])
                 .slice(0, 10)
-                .map((commit: any, index: number) => {
+                .map((rawCommit: RepositoryCommit, index: number) => {
+                  const commit: BranchCommit = {
+                    hash: rawCommit.hash || rawCommit.shortHash || "",
+                    message: rawCommit.message || "",
+                    author: rawCommit.authorName || "Unknown",
+                    authorName: rawCommit.authorName || "Unknown",
+                    timestamp: toSafeIso(rawCommit.committedAt ?? rawCommit.createdAt),
+                    branch: rawCommit.branch || "main",
+                    parents: rawCommit.parents || [],
+                    isMerge: rawCommit.isMerge || false,
+                  };
                   const branchColor = getBranchTypeColor(commit.branch);
 
+                  const commitKey = commit.hash || String(rawCommit.id ?? index);
                   return (
-                    <div key={commit.hash} className="relative">
+                    <div key={commitKey} className="relative">
                       {/* Connection lines */}
                       {index > 0 && (
                         <div className="absolute left-2 -top-4 h-4 w-px bg-primary/30" />
@@ -344,7 +383,7 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full border ${branchColor}`}
                             >
-                              {selectedBranch?.name || "main"}
+                              {commit.branch}
                             </span>
                           </div>
                         </div>
