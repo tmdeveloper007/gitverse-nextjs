@@ -269,6 +269,52 @@ export function isHttpError(
   );
 }
 
+/**
+ * Sanitizes error objects for safe logging.
+ * Extracts message, code, and other safe properties while filtering sensitive data.
+ */
+export function sanitizeError(error: unknown): Record<string, any> {
+  if (!error) {
+    return { message: "Unknown error" };
+  }
+
+  if (typeof error === "string") {
+    return { message: error };
+  }
+
+  if (error instanceof Error) {
+    const sanitized: Record<string, any> = {
+      message: error.message,
+      name: error.name,
+    };
+
+    // Include safe error properties if they exist
+    if ("code" in error) {
+      sanitized.code = (error as any).code;
+    }
+    if ("status" in error) {
+      sanitized.status = (error as any).status;
+    }
+    if ("statusCode" in error) {
+      sanitized.statusCode = (error as any).statusCode;
+    }
+
+    return sanitized;
+  }
+
+  if (typeof error === "object") {
+    const obj = error as Record<string, any>;
+    return {
+      message: obj.message || JSON.stringify(obj),
+      code: obj.code,
+      status: obj.status,
+      statusCode: obj.statusCode,
+    };
+  }
+
+  return { message: String(error) };
+}
+
 // This tells Next.js WHICH pages/routes to protect
 export const config = {
   matcher: ["/api/:path*", "/dashboard/:path*", "/profile/:path*"],
