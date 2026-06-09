@@ -17,11 +17,32 @@ export interface DependencyPath {
   violationType?: BoundaryViolationType;
 }
 
+export interface ArchitectureModule {
+  path: string;
+  name?: string;
+  language?: string;
+  complexity?: number;
+  dependencies?: string[];
+}
+
+export interface RepositoryAnalysisData {
+  repositoryId?: string;
+  files?: string[];
+  commitHash?: string;
+  analysisDate?: Date;
+  totalFiles?: number;
+  insights?: string[];
+  metadata?: Record<string, unknown>;
+}
+
 export interface ArchitectureSnapshot {
   id: string;
   repositoryId: string;
   timestamp: Date;
   snapshotDate: string;
+  label?: string;
+  modules?: ArchitectureModule[];
+  metrics?: ArchitectureMetrics;
   dependencyGraph: DependencyPath[];
   totalDependencies: number;
   violationCount: number;

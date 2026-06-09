@@ -10,7 +10,7 @@ import {
   DriftSeverity,
   ArchitectureLayer,
 } from "@/types/architectureDrift";
-import { DRIFT_SCORE_THRESHOLDS, VIOLATION_COUNT_THRESHOLDS } from "@/config/architectureDriftConfig";
+import { DRIFT_SCORE_THRESHOLDS } from "@/config/architectureDriftConfig";
 
 /**
  * Formats drift score as a percentage with label
