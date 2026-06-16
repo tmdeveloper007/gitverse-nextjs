@@ -295,6 +295,51 @@ export class AnalysisJobService {
    * complete a job. This prevents a race where two workers both think
    * they own the same job.
    */
+  /**
+   * Resets a FAILED or DONE job back to QUEUED status, allowing users to
+   * manually retry an analysis without creating a new repository entry.
+   * Only the job owner can retry a job.
+   */
+  async retryJob(params: { jobId: string; userId: number }): Promise<AnalysisJob> {
+    const job = await prisma.analysisJob.findUnique({
+      where: { id: params.jobId },
+    });
+
+    if (!job) {
+      throw new Error("Job not found");
+    }
+
+    if (job.userId !== params.userId) {
+      throw new Error("Not authorized to retry this job");
+    }
+
+    if (job.status === "QUEUED" || job.status === "PROCESSING") {
+      throw new Error("Job is already running or queued");
+    }
+
+    const updated = await prisma.analysisJob.update({
+      where: { id: params.jobId },
+      data: {
+        status: "QUEUED",
+        error: null,
+        attempts: 0,
+        progressPercent: 0,
+        progressMessage: "Queued for retry",
+        startedAt: null,
+        finishedAt: null,
+        lockedAt: null,
+        lockedBy: null,
+        lockExpiresAt: null,
+        lockToken: null,
+      },
+    });
+
+    // Re-queue the job in Bull
+    await analysisQueue.add("repository_analysis", { jobId: updated.id, userId: params.userId });
+
+    return updated;
+  }
+
   async markDone(params: { jobId: string; workerId?: string; lockToken?: string }): Promise<void> {
     const where: any = { id: params.jobId };
     if (params.workerId) {

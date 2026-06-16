@@ -76,3 +76,67 @@ export async function GET(
     );
   }
 }
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireAuth(request);
+    const jobId = params.id;
+
+    const job = await analysisJobService.getJob({
+      jobId,
+      userId: user.userId,
+    });
+
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const retried = await analysisJobService.retryJob({
+      jobId,
+      userId: user.userId,
+    });
+
+    return NextResponse.json({
+      job: {
+        id: retried.id,
+        status: retried.status,
+        type: retried.type,
+        repositoryId: retried.repositoryId,
+        attempts: retried.attempts,
+        maxAttempts: retried.maxAttempts,
+        nextRunAt: retried.nextRunAt,
+        progressPercent: retried.progressPercent,
+        progressMessage: retried.progressMessage,
+        startedAt: retried.startedAt,
+        finishedAt: retried.finishedAt,
+        error: retried.error,
+        updatedAt: retried.updatedAt,
+        createdAt: retried.createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("Retry analysis job error:", sanitizeError(error));
+
+    if (error.message === "Job is already running or queued") {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 409 }
+      );
+    }
+
+    if (isHttpError(error)) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Failed to retry analysis job" },
+      { status: 500 }
+    );
+  }
+}

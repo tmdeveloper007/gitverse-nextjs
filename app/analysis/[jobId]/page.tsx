@@ -20,7 +20,8 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
   const [job, setJob] = useState<JobData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const [retrying, setRetrying] = useState(false);
+
   const jobId = params.jobId;
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -68,6 +69,30 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
       }
     };
   }, [job, fetchJobStatus]);
+
+  const handleRetry = useCallback(async () => {
+    setRetrying(true);
+    try {
+      const response = await fetch(`/api/analysis-jobs/${jobId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        setError("Failed to retry job. Please try again.");
+        setRetrying(false);
+        return;
+      }
+      // Reset to loading state and re-fetch the job status
+      setJob(null);
+      setLoading(true);
+      setError(null);
+      await fetchJobStatus();
+      setRetrying(false);
+    } catch {
+      setError("Failed to retry job. Please try again.");
+      setRetrying(false);
+    }
+  }, [jobId, fetchJobStatus]);
 
   useEffect(() => {
     if (job?.status === "DONE" && job.repositoryId) {
@@ -163,8 +188,9 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               Analyze Another
             </Button>
-            <Button onClick={() => window.location.reload()} variant="default" aria-label="Retry Job">
-              Retry Job
+            <Button onClick={handleRetry} disabled={retrying} variant="default" aria-label="Retry Job">
+              {retrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {retrying ? "Retrying..." : "Retry Job"}
             </Button>
           </div>
         </div>
