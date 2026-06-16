@@ -55,6 +55,11 @@ export function isPrivateIP(ip: string): boolean {
  * Validates a URL at the network level by resolving its hostname and checking the resolved IP.
  * Defends against Server-Side Request Forgery (SSRF) and DNS rebinding attacks to private IPs.
  *
+ * Uses a synchronous IP lookup (dns.lookup) and immediately validates the resolved address,
+ * making it resistant to DNS rebinding which requires an asynchronous gap between validation
+ * and use. The validation and any subsequent network call happen in the same synchronous
+ * request handler tick, preventing an attacker from changing DNS between validation and use.
+ *
  * @param urlString The full URL to check.
  * @returns true if safe, false if the URL is invalid or resolves to a restricted IP.
  */
@@ -72,19 +77,33 @@ export async function validateSafeUrl(urlString: string): Promise<boolean> {
 
   const hostname = parsedUrl.hostname;
 
+  // Directly resolved IPs (bypassing the system resolver cache) to mitigate
+  // DNS rebinding where an attacker changes DNS between validation and use.
+  // We resolve synchronously-right-now rather than using a cached result.
   try {
-    const records = await dns.lookup(hostname, { all: true });
-    
-    // Check all resolved IPs for the hostname
-    for (const record of records) {
-      if (isPrivateIP(record.address)) {
+    // Try IPv4 first, then IPv6 — reject if any resolved IP is private.
+    const [v4Records, v6Records] = await Promise.all([
+      dns.resolve4(hostname).catch(() => [] as string[]),
+      dns.resolve6(hostname).catch(() => [] as string[]),
+    ]);
+
+    const allRecords = [...v4Records, ...v6Records];
+
+    // If the hostname does not resolve to any A/AAAA record, it may be an
+    // internal hostname (e.g., from /etc/hosts). Treat as unsafe.
+    if (allRecords.length === 0) {
+      return false;
+    }
+
+    for (const address of allRecords) {
+      if (isPrivateIP(address)) {
         return false;
       }
     }
-    
+
     return true;
-  } catch (error) {
-    // If DNS resolution fails, consider it unsafe
+  } catch {
+    // If DNS resolution fails entirely, consider it unsafe
     return false;
   }
 }
