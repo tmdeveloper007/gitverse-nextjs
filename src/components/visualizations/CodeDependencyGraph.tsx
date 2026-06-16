@@ -50,6 +50,44 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [heatmapMode, setHeatmapMode] = useState(false);
+
+  const { nodeChurnMap, maxChurn } = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!repository?.commits) return { nodeChurnMap: map, maxChurn: 0 };
+    
+    repository.commits.forEach((c: any) => {
+      if (c.fileChanges) {
+        c.fileChanges.forEach((fc: any) => {
+          const path = fc.path || fc.file;
+          if (path) {
+            map.set(path, (map.get(path) || 0) + 1);
+          }
+        });
+      }
+    });
+
+    graphData.nodes.forEach(node => {
+      if (node.type === 'folder') {
+        let count = 0;
+        for (const [filePath, fileCount] of map.entries()) {
+          if (filePath.startsWith(node.path + '/')) {
+            count += fileCount;
+          }
+        }
+        map.set(node.id, count);
+      } else {
+         map.set(node.id, map.get(node.path) || 0);
+      }
+    });
+
+    let max = 0;
+    for (const val of map.values()) {
+      if (val > max) max = val;
+    }
+    
+    return { nodeChurnMap: map, maxChurn: max };
+  }, [repository?.commits, graphData.nodes]);
 
   const selectedCommit = useMemo(() => {
     if (!selectedCommitHash || !repository?.commits) return null;
@@ -190,6 +228,14 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       file: "#3b82f6",
     };
 
+    const getNodeColor = (d: any) => {
+      if (heatmapMode && maxChurn > 0) {
+        const churn = nodeChurnMap.get(d.id) || 0;
+        return d3.interpolateInferno(0.2 + (churn / maxChurn) * 0.8);
+      }
+      return typeColors[d.type];
+    };
+
     // Prepare data
     const nodes = graphData.nodes.map((d) => ({ ...d }));
     const links = graphData.links.map((d) => ({ ...d }));
@@ -308,7 +354,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     node
       .append("circle")
       .attr("r", (d: any) => d.size / 3)
-      .attr("fill", (d: any) => typeColors[d.type])
+      .attr("fill", (d: any) => getNodeColor(d))
       .attr("stroke", "rgba(255,255,255,0.3)")
       .attr("stroke-width", 2)
       .on("mouseenter", function (event: any, d: any) {
@@ -325,7 +371,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
           .duration(200)
           .attr("stroke", (l: any) =>
             l.source.id === d.id || l.target.id === d.id
-              ? typeColors[d.type]
+              ? getNodeColor(d)
               : "rgba(255,255,255,0.1)",
           )
           .attr("stroke-opacity", (l: any) =>
@@ -343,6 +389,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
                 <div class="font-semibold text-sm">${d.name}</div>
                 <div class="text-xs capitalize">${d.type}</div>
                 <div class="text-xs">${d.path}</div>
+                ${heatmapMode ? `<div class="text-xs text-orange-400 mt-1">Changes: ${nodeChurnMap.get(d.id) || 0}</div>` : ''}
               </div>
             `);
         }
@@ -430,7 +477,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     return () => {
       simulation.stop();
     };
-  }, [graphData, setFocus, toggleExpand]);
+  }, [graphData, setFocus, toggleExpand, heatmapMode, nodeChurnMap, maxChurn]);
 
   // Effect to handle focus mode fading
   useEffect(() => {
@@ -584,14 +631,23 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
               Annotations ({annotations.length})
             </button>
             <div className="flex gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0" />
-                <span>Folders</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
-                <span>Files</span>
-              </div>
+              {heatmapMode ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-3 rounded bg-gradient-to-r from-[#420a68] via-[#dd513a] to-[#fca50a] flex-shrink-0" />
+                  <span>Code Churn</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0" />
+                    <span>Folders</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
+                    <span>Files</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -700,6 +756,8 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
             onExportPng={() => exportGraph("png")}
             onExportSvg={() => exportGraph("svg")}
             isExporting={isExporting}
+            heatmapMode={heatmapMode}
+            onToggleHeatmap={() => setHeatmapMode(prev => !prev)}
           />
         </div>
 
