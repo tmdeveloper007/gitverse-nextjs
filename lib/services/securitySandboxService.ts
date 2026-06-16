@@ -51,56 +51,127 @@ async function runDockerCommand(
   return { stdout: result.stdout, stderr: result.stderr };
 }
 
+/**
+ * Validates that the repository URL is safe for use in git commands.
+ * Rejects URLs that start with a hyphen (which could trigger argument injection
+ * in git commands) and URLs that do not use accepted protocols.
+ */
+function validateRepositoryUrlForGit(url: string): void {
+  // Reject URLs that start with a hyphen to prevent git argument injection.
+  // A URL like "https://github.com/owner/repo.git---upload-pack=whoami"
+  // could be interpreted as a git flag if not properly guarded.
+  if (url.startsWith("-")) {
+    throw new Error(
+      "Security violation: repository URL cannot start with a hyphen."
+    );
+  }
+
+  // Only allow https:// and git@ URLs (SSH)
+  const trimmed = url.trim();
+  const isHttps = trimmed.startsWith("https://");
+  const isGitSsh = trimmed.startsWith("git@");
+  if (!isHttps && !isGitSsh) {
+    throw new Error(
+      "Security violation: repository URL must use https:// or git@ (SSH) protocol."
+    );
+  }
+}
+
+/**
+ * Clones a repository on the host machine into a secure temporary directory.
+ * This avoids running `git clone` inside a Dockerfile, which would be
+ * vulnerable to argument injection if the URL starts with a hyphen.
+ */
+async function cloneRepositoryOnHost(
+  repositoryUrl: string,
+  headSha: string,
+): Promise<string> {
+  validateRepositoryUrlForGit(repositoryUrl);
+
+  const cloneDir = path.join(
+    os.tmpdir(),
+    `gitverse-clone-${crypto.randomBytes(8).toString("hex")}`
+  );
+  await fs.mkdir(cloneDir, { recursive: true });
+
+  try {
+    // Shallow clone to minimize download size
+    await execFileAsync(
+      "git",
+      ["clone", "--bare", "--filter=blob:none", repositoryUrl, cloneDir],
+      { timeout: 60_000 }
+    );
+
+    // Verify the requested SHA exists in the cloned repository
+    try {
+      await execFileAsync("git", ["-C", cloneDir, "rev-parse", headSha], {
+        timeout: 10_000,
+      });
+    } catch {
+      throw new Error(
+        `Requested commit ${headSha} not found in repository ${repositoryUrl}`
+      );
+    }
+
+    return cloneDir;
+  } catch (err) {
+    await fs.rm(cloneDir, { recursive: true, force: true }).catch(() => null);
+    throw err;
+  }
+}
+
 async function buildSandboxImage(
   repositoryUrl: string,
   headSha: string,
 ): Promise<string> {
   const imageTag = `gitverse-sandbox:${crypto.randomBytes(8).toString("hex")}`;
 
-  // Create a Dockerfile that uses ARG for safe parameterization
+  // Clone the repository on the host first.
+  // This avoids running `git clone` inside the Dockerfile, which would be
+  // vulnerable to argument injection if the URL starts with a hyphen.
+  const cloneDir = await cloneRepositoryOnHost(repositoryUrl, headSha);
+
+  // Create a Dockerfile that copies the pre-cloned repository files.
+  // Using COPY instead of git clone eliminates all URL-based injection risks.
   const dockerfile = `
 FROM node:22-bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \\
-    curl \\
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-ARG REPO_URL
-ARG TARGET_SHA
+COPY repo-bundle /app
 
-RUN git clone --depth 1 ${"$"}{REPO_URL} . && \\
-    git fetch origin ${"$"}{TARGET_SHA} && \\
-    git checkout ${"$"}{TARGET_SHA}
-
-RUN if [ -f package.json ]; then npm install --production 2>/dev/null || true; fi
-RUN if [ -f requirements.txt ]; then pip install -r requirements.txt 2>/dev/null || true; fi
+RUN if [ -f /app/package.json ]; then npm install --production 2>/dev/null || true; fi
+RUN if [ -f /app/requirements.txt ]; then pip install -r /app/requirements.txt 2>/dev/null || true; fi
 
 EXPOSE 3000
 CMD ["echo", "sandbox-ready"]
 `;
 
-  // Write Dockerfile using fs (no shell interpolation)
-  const tempDir = path.join(os.tmpdir(), `gitverse-sandbox-${crypto.randomBytes(8).toString("hex")}`);
+  const tempDir = path.join(
+    os.tmpdir(),
+    `gitverse-sandbox-${crypto.randomBytes(8).toString("hex")}`
+  );
   await fs.mkdir(tempDir, { recursive: true });
-  await fs.writeFile(path.join(tempDir, "Dockerfile"), dockerfile, "utf-8");
 
   try {
-    // Use --build-arg to pass values safely (no shell interpretation)
-    await runDockerCommand([
-      "build",
-      "--build-arg", `REPO_URL=${repositoryUrl}`,
-      "--build-arg", `TARGET_SHA=${headSha}`,
-      "-t", imageTag,
-      tempDir,
-    ], 120_000);
+    // Copy the cloned repository into the build context
+    const bundleDir = path.join(tempDir, "repo-bundle");
+    await fs.mkdir(bundleDir, { recursive: true });
+    await fs.cp(cloneDir, bundleDir, { recursive: true });
+
+    await fs.writeFile(path.join(tempDir, "Dockerfile"), dockerfile, "utf-8");
+
+    await runDockerCommand(["build", "-t", imageTag, tempDir], 120_000);
     return imageTag;
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => null);
+    await fs.rm(cloneDir, { recursive: true, force: true }).catch(() => null);
   }
 }
-
 async function runSecurityTests(
   imageTag: string,
 ): Promise<{
