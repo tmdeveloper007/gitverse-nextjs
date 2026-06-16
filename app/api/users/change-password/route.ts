@@ -42,6 +42,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Type validation after presence/length checks preserves existing error
+    // messages. This guards against arrays (which bypass the .length check
+    // since ["a","b","c"].length === 3) reaching bcrypt as non-strings.
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+      return NextResponse.json(
+        { error: "Passwords must be valid strings" },
+        { status: 400 }
+      );
+    }
+
     const userDetails = await prisma.user.findUnique({
       where: { id: user.userId },
     });

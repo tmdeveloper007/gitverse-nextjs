@@ -121,6 +121,15 @@ export async function DELETE(request: NextRequest) {
         );
       }
 
+      // Type guard prevents non-string values (e.g., arrays) from reaching
+      // bcrypt.compare, which would throw or produce incorrect results.
+      if (typeof password !== 'string') {
+        return NextResponse.json(
+          { error: "Password must be a valid string" },
+          { status: 400 },
+        );
+      }
+
       const isValid = await bcrypt.compare(password, fullUser.passwordHash);
       if (!isValid) {
         await recordAttempt({
