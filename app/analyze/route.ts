@@ -8,6 +8,7 @@ import { sanitizeError } from "@/lib/middleware";
 import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
 import { normalizeTargetDirectory } from "@/lib/utils/repositoryUtils";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
+import { validateSafeUrl } from "@/lib/utils/ssrfValidator";
 
 function normalizeKnownRepoHttpUrl(input: string): string | null {
   let parsed: URL;
@@ -106,6 +107,21 @@ export async function POST(request: NextRequest) {
           {
             error:
               "Invalid repository URL. Use a full repository URL like https://github.com/owner/repo",
+          },
+          { status: 400 },
+        );
+      }
+
+      // SSRF check: validate that the URL resolves to a public IP address.
+      // This prevents users from submitting internal network URLs (e.g. AWS metadata
+      // endpoints, private IPs) which would otherwise reach internal resources
+      // when the worker processes the repository.
+      const isSafe = await validateSafeUrl(normalizedUrl);
+      if (!isSafe) {
+        return NextResponse.json(
+          {
+            error:
+              "Please enter a valid public GitHub, GitLab, or Bitbucket repository URL. Internal and private network addresses are not allowed.",
           },
           { status: 400 },
         );
