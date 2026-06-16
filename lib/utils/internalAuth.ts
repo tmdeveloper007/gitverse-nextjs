@@ -48,11 +48,18 @@ export function isAnalysisRunnerTokenValid(
   if (!secret) return false;
   if (!headerSecret) return false;
 
+  // Pre-validate length equality before calling timingSafeEqual to prevent
+  // timing side-channels from leaking length information. crypto.timingSafeEqual
+  // throws RangeError on length mismatch, which would introduce a timing oracle
+  // if not handled before the comparison.
+  const headerBuf = Buffer.from(headerSecret);
+  const secretBuf = Buffer.from(secret);
+  if (headerBuf.length !== secretBuf.length) {
+    return false;
+  }
+
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(headerSecret),
-      Buffer.from(secret)
-    );
+    return crypto.timingSafeEqual(headerBuf, secretBuf);
   } catch {
     return false;
   }
