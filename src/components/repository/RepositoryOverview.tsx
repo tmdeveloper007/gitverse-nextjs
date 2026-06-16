@@ -197,7 +197,14 @@ export const RepositoryOverview = ({
 
   // IMPORTANT: derive README directly from props so it always matches the
   // currently-selected repository (avoids showing stale README when navigating).
-  const readmeText: string | null = repositoryData?.readmeText ?? null;
+  // Truncate large READMEs to prevent rendering failures and browser freezes.
+  const MAX_README_LENGTH = 200_000; // 200k chars — covers 99% of repos, prevents OOM
+  const rawReadmeText: string | null = repositoryData?.readmeText ?? null;
+  const readmeText: string | null =
+    rawReadmeText != null && rawReadmeText.length > MAX_README_LENGTH
+      ? rawReadmeText.slice(0, MAX_README_LENGTH) +
+        "\n\n---\n\n*README truncated (exceeded 200,000 characters)*"
+      : rawReadmeText;
   const readmePath: string | null = repositoryData?.readmePath ?? null;
 
   // Initialize module bookmarks hook
