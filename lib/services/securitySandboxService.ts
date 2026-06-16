@@ -53,26 +53,51 @@ async function runDockerCommand(
 
 async function buildSandboxImage(
   repositoryUrl: string,
+  validatedIp: string | undefined,
   headSha: string,
 ): Promise<string> {
   const imageTag = `gitverse-sandbox:${crypto.randomBytes(8).toString("hex")}`;
+
+  // Clone URL strategy:
+  // If we have a validated public IP from validateSafeUrl, use it directly
+  // and configure git to route it back to the original hostname via
+  // url.<base>.insteadOf. This prevents DNS rebinding: after validateSafeUrl
+  // confirmed the IP is public, we must not let git re-resolve the hostname.
+  // If no validatedIp (e.g. git@github.com SSH URLs), fall back to the URL as-is.
+  let cloneUrl: string;
+  let cloneSetupCmd: string;
+  if (validatedIp) {
+    try {
+      const urlObj = new URL(repositoryUrl);
+      cloneUrl = `${urlObj.protocol}//${validatedIp}${urlObj.pathname}`;
+      // Rewrite IP back to hostname so the Git server can route the request
+      cloneSetupCmd = `RUN git config --global url."${cloneUrl.replace("/", "")}".insteadOf "${repositoryUrl}"`;
+    } catch {
+      cloneUrl = repositoryUrl;
+      cloneSetupCmd = "";
+    }
+  } else {
+    cloneUrl = repositoryUrl;
+    cloneSetupCmd = "";
+  }
 
   // Create a Dockerfile that uses ARG for safe parameterization
   const dockerfile = `
 FROM node:22-bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \\
-    curl \\
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-ARG REPO_URL
 ARG TARGET_SHA
 
-RUN git clone --depth 1 ${"$"}{REPO_URL} . && \\
-    git fetch origin ${"$"}{TARGET_SHA} && \\
-    git checkout ${"$"}{TARGET_SHA}
+${cloneSetupCmd}
+
+RUN git clone --depth 1 \${CLONE_URL} . && \
+    git fetch origin \${TARGET_SHA} && \
+    git checkout \${TARGET_SHA}
 
 RUN if [ -f package.json ]; then npm install --production 2>/dev/null || true; fi
 RUN if [ -f requirements.txt ]; then pip install -r requirements.txt 2>/dev/null || true; fi
@@ -90,7 +115,7 @@ CMD ["echo", "sandbox-ready"]
     // Use --build-arg to pass values safely (no shell interpretation)
     await runDockerCommand([
       "build",
-      "--build-arg", `REPO_URL=${repositoryUrl}`,
+      "--build-arg", `CLONE_URL=${cloneUrl}`,
       "--build-arg", `TARGET_SHA=${headSha}`,
       "-t", imageTag,
       tempDir,
@@ -255,8 +280,8 @@ export async function runSecuritySandbox(params: {
     throw new Error("Security sandbox is not enabled. Set SECURITY_SANDBOX_ENABLED=true");
   }
 
-  const isSafeUrl = await validateSafeUrl(params.repositoryUrl);
-  if (!isSafeUrl) {
+  const urlValidation = await validateSafeUrl(params.repositoryUrl);
+  if (!urlValidation.safe) {
     throw new Error("Security sandbox aborted: Repository URL resolves to an untrusted or private network address.");
   }
 
@@ -274,8 +299,8 @@ export async function runSecuritySandbox(params: {
   let imageTag: string | undefined;
 
   try {
-    // Build sandbox image
-    imageTag = await buildSandboxImage(params.repositoryUrl, params.headSha);
+    // Build sandbox image (pass validated IP to prevent DNS rebinding)
+    imageTag = await buildSandboxImage(params.repositoryUrl, urlValidation.ip, params.headSha);
 
     await prisma.securitySandbox.update({
       where: { id: sandbox.id },

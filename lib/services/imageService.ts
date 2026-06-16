@@ -218,22 +218,34 @@ export async function fetchAndValidateAvatarUrl(
       return { valid: false, error: "Invalid URL hostname" };
     }
 
-    const safe = await validateSafeUrl(url);
-    if (!safe) {
+    const validation = await validateSafeUrl(url);
+    if (!validation.safe) {
       return { valid: false, error: "URL resolves to a restricted address" };
     }
+
+    // Use the validated IP directly to prevent DNS rebinding attacks.
+    // After validateSafeUrl has confirmed the IP is public, we must not
+    // re-resolve the hostname at fetch time (that would reopen the DNS
+    // rebinding window). Instead we connect to the validated IP and pass
+    // the original hostname in the Host header so the server can still
+    // route the request correctly.
+    const validatedIp = validation.ip!;
+    const originalHostname = parsedUrl.hostname;
+    const ipBasedUrl = `${parsedUrl.protocol}//${validatedIp}${parsedUrl.pathname}${parsedUrl.search}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(ipBasedUrl, {
         signal: controller.signal,
         redirect: "follow",
         headers: {
           "User-Agent": "GitVerse-Avatar-Fetcher/1.0",
           Accept: "image/*,*/*;q=0.8",
+          // Preserve original hostname so the target server can route correctly
+          Host: originalHostname,
         },
       });
     } finally {

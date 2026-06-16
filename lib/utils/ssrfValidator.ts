@@ -52,39 +52,86 @@ export function isPrivateIP(ip: string): boolean {
 }
 
 /**
- * Validates a URL at the network level by resolving its hostname and checking the resolved IP.
- * Defends against Server-Side Request Forgery (SSRF) and DNS rebinding attacks to private IPs.
+ * Resolves a hostname to all IPv4 and IPv6 addresses using direct DNS queries.
+ * Uses dns.resolve4 and dns.resolve6 (bypasses the system nsswitch.conf/hosts cache)
+ * to defend against DNS rebinding attacks where /etc/hosts or nsswitch.conf could
+ * cause dns.lookup() to return a different result than the actual DNS record.
+ */
+async function resolveHostDirectly(hostname: string): Promise<string[]> {
+  const addresses: string[] = [];
+  try {
+    const aRecords = await dns.resolve4(hostname);
+    addresses.push(...aRecords);
+  } catch {
+    // No A records — not an error
+  }
+  try {
+    const aaaaRecords = await dns.resolve6(hostname);
+    addresses.push(...aaaaRecords);
+  } catch {
+    // No AAAA records — not an error
+  }
+  return addresses;
+}
+
+/**
+ * Result of URL validation including the resolved public IP for safe fetches.
+ */
+export interface UrlValidationResult {
+  safe: boolean;
+  /** The resolved public IP address, present when safe is true */
+  ip?: string;
+}
+
+/**
+ * Validates a URL by performing direct DNS resolution and checking the resolved IP
+ * against private/reserved ranges. Returns the validated public IP so callers can
+ * use it directly instead of re-resolving the hostname later (which closes the
+ * DNS rebinding window).
+ *
+ * Defends against Server-Side Request Forgery (SSRF) and DNS rebinding attacks.
  *
  * @param urlString The full URL to check.
- * @returns true if safe, false if the URL is invalid or resolves to a restricted IP.
+ * @returns An object with { safe: boolean, ip?: string }.
+ *   When safe is true, ip contains the validated public IP address.
  */
-export async function validateSafeUrl(urlString: string): Promise<boolean> {
+export async function validateSafeUrl(urlString: string): Promise<UrlValidationResult> {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(urlString);
   } catch {
-    return false; // Invalid URL
+    return { safe: false }; // Invalid URL
   }
 
   if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-    return false;
+    return { safe: false };
   }
 
   const hostname = parsedUrl.hostname;
 
   try {
-    const records = await dns.lookup(hostname, { all: true });
-    
-    // Check all resolved IPs for the hostname
-    for (const record of records) {
-      if (isPrivateIP(record.address)) {
-        return false;
+    // Use direct DNS resolution to bypass system resolver cache
+    // (dns.lookup() respects /etc/hosts and nsswitch.conf, which can be
+    // manipulated to cause dns.lookup() to return a different IP than the
+    // actual DNS A/AAAA record — enabling DNS rebinding attacks)
+    const addresses = await resolveHostDirectly(hostname);
+
+    if (addresses.length === 0) {
+      // No DNS records — hostname does not resolve; treat as unsafe
+      return { safe: false };
+    }
+
+    // Check all resolved IPs
+    for (const address of addresses) {
+      if (isPrivateIP(address)) {
+        return { safe: false };
       }
     }
-    
-    return true;
+
+    // Return the first resolved public IP for use in actual requests
+    return { safe: true, ip: addresses[0] };
   } catch (error) {
-    // If DNS resolution fails, consider it unsafe
-    return false;
+    // DNS resolution failure — treat as unsafe
+    return { safe: false };
   }
 }
