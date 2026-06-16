@@ -3,20 +3,30 @@ import { requireAuth } from "@/lib/middleware";
 import { prisma } from "@/lib/prisma";
 import { broadcastAnnotationEvent } from "@/lib/services/annotationSync";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
+import { enforceRepositoryPermission } from "@/middleware/repository-permissions";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
-    const repositoryId = searchParams.get("repositoryId");
+    const repositoryIdStr = searchParams.get("repositoryId");
 
-    if (!repositoryId) {
+    if (!repositoryIdStr) {
       return NextResponse.json({ error: "repositoryId is required" }, { status: 400 });
+    }
+
+    const repositoryId = parseInt(repositoryIdStr);
+    if (isNaN(repositoryId)) {
+      return NextResponse.json({ error: "repositoryId must be a valid integer" }, { status: 400 });
+    }
+
+    const permission = await enforceRepositoryPermission(request, repositoryId, 'read');
+    if (!permission.allowed) {
+      return permission.errorResponse;
     }
 
     const annotations = await prisma.mapAnnotation.findMany({
       where: {
-        repositoryId: parseInt(repositoryId),
+        repositoryId,
       },
       include: {
         author: {
