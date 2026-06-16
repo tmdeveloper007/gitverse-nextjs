@@ -313,11 +313,14 @@ export async function runSecuritySandbox(params: {
           const token = await getDecryptedGitHubToken(repo.user.id);
           if (!token) throw new Error("Failed to get decrypted GitHub token");
           const githubService = new GitHubService(token);
-          const parts = repo.url.split("/");
-          const owner = parts[parts.length - 2];
-          const name = parts[parts.length - 1];
+          const ownerRepo = GitHubService.parseGitHubUrl(repo.url);
+          if (!ownerRepo) {
+            console.error("Failed to parse repository URL for quarantine:", repo.url);
+            throw new Error("Invalid repository URL for quarantine action");
+          }
+          const { owner, repo: name } = ownerRepo;
           const pullNumber = pr.prNumber;
-          
+
           await githubService.updatePullRequest(owner, name, pullNumber, {
             state: "closed",
           });
