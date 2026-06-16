@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Key, Plus, Trash2, Copy, Check } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
@@ -30,19 +30,46 @@ export default function ApiKeysSettingsPage() {
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // AbortController ref to cancel stale in-flight fetch requests.
+  // Without this, overlapping requests (e.g. initial load + revoke) can
+  // resolve out of order, causing the oldest response to overwrite the newest
+  // state with stale data.
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const fetchKeys = useCallback(async () => {
+    // Cancel any in-flight request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const res = await fetch("/api/settings/api-keys");
+      const res = await fetch("/api/settings/api-keys", {
+        signal: controller.signal,
+      });
       if (res.ok) {
         const data = await res.json();
         setKeys(data.keys);
       }
-    } catch {
+    } catch (err: any) {
+      // Ignore abort errors — they are expected when a request is cancelled
+      if (err.name === "AbortError") return;
       toast.error("Failed to load API keys");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchKeys();
+    return () => {
+      // Cleanup: cancel any pending request on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchKeys]);
 
   useEffect(() => {
     fetchKeys();
