@@ -4,6 +4,7 @@ import { LanguageDistributionChart } from '@/components/visualizations/LanguageD
 import { CodeMetrics } from './CodeMetrics'
 import RepositoryLearningPath from "./RepositoryLearningPath";
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import RepositoryEvolutionTimeline from "./RepositoryEvolutionTimeline";
 import { useState } from 'react'
 import { toast } from '@/hooks/use-toast'
 import axios from 'axios'
@@ -257,6 +258,9 @@ export function RepositoryInsights({
 
       {/* AI Repository Learning Path */}
       <RepositoryLearningPath repository={repository} />
+
+      {/* Repository Evolution Timeline */}
+      <RepositoryEvolutionTimeline />
 
     </div>
   )
