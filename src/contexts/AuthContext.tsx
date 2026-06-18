@@ -68,8 +68,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // Otherwise, check for JWT token
-      const token = localStorage.getItem("gitverse_token");
+      // Otherwise, check for JWT token (check localStorage first, then sessionStorage)
+      const token = localStorage.getItem("gitverse_token") || sessionStorage.getItem("gitverse_token");
 
       if (token) {
         try {
@@ -91,6 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             });
           } else if (response.status === 401) {
             localStorage.removeItem("gitverse_token");
+            sessionStorage.removeItem("gitverse_token");
             if (typeof window !== "undefined") {
               window.dispatchEvent(new CustomEvent("session-expired", {
                 detail: { message: SESSION_EXPIRED_MESSAGE },
@@ -99,10 +100,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
           } else {
             localStorage.removeItem("gitverse_token");
+            sessionStorage.removeItem("gitverse_token");
           }
         } catch (error) {
           console.error("Failed to verify auth:", error);
           localStorage.removeItem("gitverse_token");
+          sessionStorage.removeItem("gitverse_token");
         }
       }
       setIsLoading(false);
@@ -138,7 +141,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
       };
 
-      localStorage.setItem("gitverse_token", data.token);
+      // Store token in localStorage if rememberMe is true, otherwise use sessionStorage
+      if (rememberMe) {
+        localStorage.setItem("gitverse_token", data.token);
+      } else {
+        sessionStorage.setItem("gitverse_token", data.token);
+      }
       setUser(newUser);
     } catch (error) {
       setIsLoading(false);
@@ -186,7 +194,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async (retries = 2) => {
-    const token = localStorage.getItem("gitverse_token");
+    const token = localStorage.getItem("gitverse_token") || sessionStorage.getItem("gitverse_token");
+
+    // Clear token from both storage types
+    localStorage.removeItem("gitverse_token");
+    sessionStorage.removeItem("gitverse_token");
 
     // Handle JWT logout
     if (token) {
@@ -200,7 +212,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             },
           });
           if (response.ok) {
-            localStorage.removeItem("gitverse_token");
             break;
           }
         } catch (error) {
