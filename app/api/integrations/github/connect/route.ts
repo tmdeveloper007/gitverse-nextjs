@@ -37,6 +37,37 @@ export async function POST(request: NextRequest) {
     const github = new GitHubService(token);
     const me = await github.getAuthenticatedUser();
 
+    // Fetch the current user record to verify token ownership
+    const currentUser = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { id: true, email: true, githubAccount: { select: { username: true } } },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 },
+      );
+    }
+
+    // Verify the token belongs to this user
+    const existingGithubUsername = currentUser.githubAccount?.username;
+    const githubEmailMatches = me.email
+      ? me.email.toLowerCase() === currentUser.email.toLowerCase()
+      : false;
+    const githubUsernameMatches = existingGithubUsername
+      ? me.login.toLowerCase() === existingGithubUsername.toLowerCase()
+      : false;
+
+    if (!githubUsernameMatches && !githubEmailMatches) {
+      return NextResponse.json(
+        {
+          error: "The GitHub token you provided does not appear to belong to your account. Please use a token linked to your GitHub username.",
+        },
+        { status: 403 },
+      );
+    }
+
     const encryptedToken = await encryptToken(token);
 
     const account = await prisma.gitHubAccount.upsert({
