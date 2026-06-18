@@ -12,6 +12,10 @@ import {
   countAttempts,
   recordAttempt,
 } from "@/lib/services/rateLimitService";
+import {
+  GITVERSE_SESSION_COOKIE,
+  getGitverseSessionCookieOptions,
+} from "@/lib/utils/authCookie";
 
 const MAX_SIGNUPS = 3;
 const WINDOW_MS = 60 * 60 * 1000;
@@ -123,7 +127,10 @@ export async function POST(request: NextRequest) {
       tokenVersion: user.tokenVersion,
     });
 
-    return NextResponse.json(
+    const maxAge = 60 * 60 * 24; // 1 day for signup
+    const cookieOptions = getGitverseSessionCookieOptions(maxAge);
+
+    const response = NextResponse.json(
       {
         user: {
           id: user.id,
@@ -135,6 +142,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 },
     );
+    response.headers.append("Set-Cookie", `${GITVERSE_SESSION_COOKIE}=${token}; ${cookieOptions}`);
+    return response;
   } catch (error: any) {
     if (error?.code === "P2002") {
       logger.info(

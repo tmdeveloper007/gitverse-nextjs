@@ -10,6 +10,10 @@ import {
   recordAttempt,
   clearFailedAttempts,
 } from "@/lib/services/rateLimitService";
+import {
+  GITVERSE_SESSION_COOKIE,
+  getGitverseSessionCookieOptions,
+} from "@/lib/utils/authCookie";
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 60 * 1000;
@@ -179,7 +183,10 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    return NextResponse.json({
+    const maxAge = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24; // 30 days or 1 day
+    const cookieOptions = getGitverseSessionCookieOptions(maxAge);
+
+    const response = NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
@@ -188,6 +195,8 @@ export async function POST(request: NextRequest) {
       },
       token,
     });
+    response.headers.append("Set-Cookie", `${GITVERSE_SESSION_COOKIE}=${token}; ${cookieOptions}`);
+    return response;
   } catch (error) {
     console.error("Login error:", error);
     return apiError(500, "Internal server error");

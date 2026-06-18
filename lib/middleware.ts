@@ -5,6 +5,64 @@ import type { JWTPayload } from "./auth";
 import prisma from "@/lib/prisma";
 import { getToken } from "next-auth/jwt";
 import { hashApiKey } from "@/lib/utils/api-key";
+import { GITVERSE_SESSION_COOKIE } from "@/lib/utils/authCookie";
+
+/**
+ * Extracts the gitverse JWT session token from the httpOnly session cookie.
+ * This prevents XSS token theft since httpOnly cookies are not accessible to JavaScript.
+ */
+function extractSessionCookieToken(request: NextRequest): string | null {
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const cookies = Object.fromEntries(
+    cookieHeader.split(";").map((c) => {
+      const [k, ...v] = c.trim().split("=");
+      return [k, v.join("=")];
+    })
+  );
+  return cookies[GITVERSE_SESSION_COOKIE] ?? null;
+}
+
+/**
+ * Validates a gitverse JWT session token (from cookie or header) and returns the user payload.
+ */
+async function validateGitverseToken(token: string): Promise<JWTPayload | null> {
+  if (token.startsWith("gv_")) {
+    const hashed = hashApiKey(token);
+    try {
+      const apiKey = await prisma.apiKey.findUnique({ where: { hashedKey: hashed } });
+      if (apiKey && apiKey.expiresAt > new Date()) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: apiKey.userId },
+          select: { id: true, email: true, name: true, tokenVersion: true, lockedUntil: true },
+        });
+        if (dbUser && (!dbUser.lockedUntil || dbUser.lockedUntil <= new Date())) {
+          await prisma.apiKey.update({
+            where: { id: apiKey.id },
+            data: { lastUsedAt: new Date() },
+          });
+          return { userId: dbUser.id, email: dbUser.email, tokenVersion: dbUser.tokenVersion };
+        }
+      }
+    } catch {
+      // DB error — fall through
+    }
+  }
+
+  try {
+    const payload = await verifyTokenWithUserValidation(token);
+    if (!payload) return null;
+    const dbUser = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, tokenVersion: true, lockedUntil: true },
+    });
+    if (!dbUser) return null;
+    if (dbUser.lockedUntil && dbUser.lockedUntil > new Date()) return null;
+    if (payload.tokenVersion !== dbUser.tokenVersion) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 export interface AuthenticatedRequest {
   user: JWTPayload;
@@ -19,70 +77,23 @@ export interface AuthenticatedRequest {
 export async function getAuthUser(
   request: NextRequest
 ): Promise<JWTPayload | null> {
+  // 1) Gitverse JWT session cookie (httpOnly, prevents XSS token theft)
+  const sessionCookieToken = extractSessionCookieToken(request);
+  if (sessionCookieToken) {
+    const payload = await validateGitverseToken(sessionCookieToken);
+    if (payload) return payload;
+  }
+
+  // 2) Authorization: Bearer <token> header (legacy, kept for backward compatibility)
   const authHeader = request.headers.get("authorization");
   let userPayload: JWTPayload | null = null;
 
-  // 1) Secure JWT auth (Authorization: Bearer ...)
-  // Uses verifyTokenWithUserValidation for proper tokenVersion checking
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
-    
-    // Try API key lookup first (fast, no crypto overhead)
-    if (token.startsWith("gv_")) {
-      const hashed = hashApiKey(token);
-      try {
-        const apiKey = await prisma.apiKey.findUnique({ where: { hashedKey: hashed } });
-        if (apiKey && apiKey.expiresAt > new Date()) {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: apiKey.userId },
-            select: { id: true, email: true, name: true, tokenVersion: true, lockedUntil: true },
-          });
-          if (dbUser && (!dbUser.lockedUntil || dbUser.lockedUntil <= new Date())) {
-            await prisma.apiKey.update({
-              where: { id: apiKey.id },
-              data: { lastUsedAt: new Date() },
-            });
-            userPayload = { userId: dbUser.id, email: dbUser.email, tokenVersion: dbUser.tokenVersion };
-          }
-        }
-      } catch {
-        // DB error — fall through to other auth methods
-      }
-    }
-
-    // Try JWT token (existing behavior)
-    if (!userPayload) {
-      try {
-        const payload = await verifyTokenWithUserValidation(token);
-        
-        if (payload) {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: payload.userId },
-            select: {
-              id: true,
-              tokenVersion: true,
-              lockedUntil: true,
-            },
-          });
-
-          if (!dbUser) {
-            return null;
-          }
-
-          if (dbUser.lockedUntil && dbUser.lockedUntil > new Date()) {
-            return null;
-          }
-
-          if (payload.tokenVersion !== dbUser.tokenVersion) {
-            return null;
-          }
-
-          userPayload = payload;
-        }
-      } catch (error) {
-        console.warn("[Auth] JWT validation error:", error);
-        return null;
-      }
+    // Skip if already validated from cookie (avoid double validation)
+    if (token !== sessionCookieToken) {
+      const payload = await validateGitverseToken(token);
+      if (payload) userPayload = payload;
     }
   }
 

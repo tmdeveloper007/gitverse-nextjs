@@ -3,7 +3,7 @@ import { getAuthUser, sanitizeError } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
 import { getToken } from "next-auth/jwt";
 import { getNextAuthSecret } from "@/lib/config/env";
-import { appendClearCookieHeaders } from "@/lib/utils/authCookie";
+import { appendClearCookieHeaders, getGitverseClearCookieHeader } from "@/lib/utils/authCookie";
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,12 +44,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    const authHeader = request.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      // JWT logout: revoke token and clear session cookie
+      const response = NextResponse.json({
+        message: "Logged out successfully",
+      });
+      response.headers.append("Set-Cookie", getGitverseClearCookieHeader());
+      return response;
+    }
+
+    const response = NextResponse.json({
       message: "Logged out successfully",
     });
+    response.headers.append("Set-Cookie", getGitverseClearCookieHeader());
+    return response;
   } catch (error) {
     console.error("Logout error:", sanitizeError(error));
-
     return NextResponse.json(
       { error: "Failed to process logout request" },
       { status: 500 }
