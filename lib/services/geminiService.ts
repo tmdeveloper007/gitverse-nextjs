@@ -1,40 +1,9 @@
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { getGeminiAnalysisCache, setGeminiAnalysisCache } from "./geminiAnalysisCacheService";
 import { buildCacheKey } from "../utils/cacheKey";
+import { scanAndRedactPayload } from "../utils/secretRedaction";
 
 const CURRENT_MODEL_VERSION = "gemini-2.5-flash";
-
-const HIGH_CONFIDENCE_SECRETS = [
-  { name: 'GitHub Token', pattern: /(?:gh[pousr]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/g },
-  { name: 'Google API Key', pattern: /AIza[0-9A-Za-z\-_]{35}/g },
-  { name: 'AWS Access Key', pattern: /AKIA[0-9A-Z]{16}/g },
-  { name: 'Slack Token', pattern: /xox[baprs]-[0-9]{12}-[0-9]{12}-[a-zA-Z0-9]{24}/g },
-  { name: 'RSA Private Key', pattern: /-----BEGIN RSA PRIVATE KEY-----[\s\S]*?-----END RSA PRIVATE KEY-----/g },
-];
-
-const SUSPECTED_SECRETS = [
-  { name: 'Generic Secret', pattern: /(?:secret|key|token|password|passwd|pwd)[\s:=]+['"]?([a-zA-Z0-9\-_=]{16,})['"]?/gi },
-  { name: 'Bearer Token', pattern: /bearer\s+([a-zA-Z0-9\-\._~+\/]+=*)/gi }
-];
-
-export function scanAndRedactPayload(payload: string): string {
-  // 1. Check for high-confidence secrets
-  for (const rule of HIGH_CONFIDENCE_SECRETS) {
-    if (rule.pattern.test(payload)) {
-      throw new Error(`High-confidence secret detected: ${rule.name}. Halting PR review to prevent secret leak to AI provider.`);
-    }
-  }
-
-  // 2. Redact suspected tokens
-  let redactedPayload = payload;
-  for (const rule of SUSPECTED_SECRETS) {
-    redactedPayload = redactedPayload.replace(rule.pattern, (match, secretToken) => {
-      return match.replace(secretToken, '[REDACTED_SECRET]');
-    });
-  }
-
-  return redactedPayload;
-}
 
 export interface AIAnalysisRequest {
   repositoryId: number;
