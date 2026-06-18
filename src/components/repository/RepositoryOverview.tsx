@@ -199,11 +199,11 @@ export const RepositoryOverview = ({
   // currently-selected repository (avoids showing stale README when navigating).
   // Truncate large READMEs to prevent rendering failures and browser freezes.
   const MAX_README_LENGTH = 200_000; // 200k chars — covers 99% of repos, prevents OOM
+  const TRUNCATION_NOTICE = "\n\n---\n\n*README truncated (exceeded 200,000 characters)*";
   const rawReadmeText: string | null = repositoryData?.readmeText ?? null;
   const readmeText: string | null =
     rawReadmeText != null && rawReadmeText.length > MAX_README_LENGTH
-      ? rawReadmeText.slice(0, MAX_README_LENGTH) +
-        "\n\n---\n\n*README truncated (exceeded 200,000 characters)*"
+      ? rawReadmeText.slice(0, MAX_README_LENGTH - TRUNCATION_NOTICE.length) + TRUNCATION_NOTICE
       : rawReadmeText;
   const readmePath: string | null = repositoryData?.readmePath ?? null;
 
