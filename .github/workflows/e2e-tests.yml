@@ -1,0 +1,101 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  e2e-tests:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: dummy
+          POSTGRES_PASSWORD: dummy
+          POSTGRES_DB: dummy
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run Prisma migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed database
+        run: npm run db:seed
+
+      - name: Start worker server in background
+        run: npm run worker:server:dev &
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+          JWT_SECRET: "dummy-secret"
+          NEXTAUTH_SECRET: "dummy-secret"
+          NEXTAUTH_URL: "http://localhost:3000"
+          GEMINI_API_KEY: "dummy-key"
+          INTERNAL_WORKER_SECRET: "dummy-secret"
+          TOKEN_ENCRYPTION_KEY: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          REDIS_HOST: "localhost"
+          REDIS_PORT: 6379
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for worker server to start..."
+          sleep 10
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+          JWT_SECRET: "dummy-secret"
+          NEXTAUTH_SECRET: "dummy-secret"
+          NEXTAUTH_URL: "http://localhost:3000"
+          GEMINI_API_KEY: "dummy-key"
+          INTERNAL_WORKER_SECRET: "dummy-secret"
+          TOKEN_ENCRYPTION_KEY: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          REDIS_HOST: "localhost"
+          REDIS_PORT: 6379
+
+      - name: Upload Playwright reports on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-failure
+          path: playwright-report/
+          retention-days: 30
