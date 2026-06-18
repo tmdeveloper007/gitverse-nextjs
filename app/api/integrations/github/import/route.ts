@@ -6,6 +6,8 @@ import { analysisJobService } from "@/lib/services/analysisJobService";
 import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
 import { logger } from "@/lib/logger";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
+import { getDecryptedGitHubToken } from "@/lib/utils/githubToken";
+import crypto from "crypto";
 function kickLocalRunner(request: NextRequest) {
   if (process.env.NODE_ENV === "production") return;
   const origin = new URL(request.url).origin;
@@ -45,10 +47,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!token) {
+    // SECURITY: Verify token ownership. Accept token from request body only if it
+    // matches the token already stored for this user in the database. Reject arbitrary
+    // tokens supplied by the client to prevent auth bypass attacks.
+    const storedToken = await getDecryptedGitHubToken(user.userId);
+    let verifiedToken: string | null = null;
+
+    if (token && storedToken) {
+      // Compare tokens in constant time to prevent timing attacks
+      const tokenBuf = Buffer.from(token);
+      const storedBuf = Buffer.from(storedToken);
+      if (tokenBuf.length === storedBuf.length && crypto.timingSafeEqual(tokenBuf, storedBuf)) {
+        verifiedToken = token;
+      }
+    }
+
+    if (!verifiedToken && !storedToken) {
       return NextResponse.json(
-        { error: "GitHub token is required" },
-        { status: 400 }
+        { error: "GitHub account not connected. Please connect your GitHub account first." },
+        { status: 403 }
+      );
+    }
+
+    if (!verifiedToken) {
+      return NextResponse.json(
+        { error: "GitHub token does not match your connected account." },
+        { status: 403 }
       );
     }
 
@@ -60,7 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const github = new GitHubService(token);
+    const github = new GitHubService(verifiedToken);
     const repoData = await github.getRepository(parsed.owner, parsed.repo);
 
     const repository = await repositoryService.createRepository({
