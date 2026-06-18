@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import prisma from "@/lib/prisma";
 import { requireAuth, isHttpError , sanitizeError } from "@/lib/middleware";
 import { analysisJobService } from "@/lib/services/analysisJobService";
 
@@ -72,6 +73,57 @@ export async function GET(
 
     return NextResponse.json(
       { error: "Failed to get analysis job" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireAuth(request);
+    const jobId = params.id;
+
+    const job = await analysisJobService.getJob({
+      jobId,
+      userId: user.userId,
+    });
+
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    await prisma.analysisJob.update({
+      where: { id: jobId, userId: user.userId },
+      data: {
+        status: "QUEUED",
+        lockedBy: null,
+        lockedAt: null,
+        lockExpiresAt: null,
+        lockToken: null,
+        nextRunAt: new Date(),
+        progressMessage: "Re-queued for processing",
+        error: null,
+      },
+    });
+
+    await kickLocalRunner(request, jobId);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Retry analysis job error:", sanitizeError(error));
+
+    if (isHttpError(error)) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Failed to retry analysis job" },
       { status: 500 }
     );
   }

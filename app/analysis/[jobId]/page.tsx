@@ -6,6 +6,8 @@ import { Loader2, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui";
 import RepositoryAnalysisProgress from "@/components/repository/RepositoryAnalysisProgress";
 
+const MAX_WAIT_MS = 5 * 60 * 1000;
+
 interface JobData {
   id: string;
   status: "QUEUED" | "PROCESSING" | "DONE" | "FAILED";
@@ -20,9 +22,13 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
   const [job, setJob] = useState<JobData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   
   const jobId = params.jobId;
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number | null>(null);
 
   const fetchJobStatus = useCallback(async () => {
     try {
@@ -43,6 +49,24 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
     }
   }, [jobId]);
 
+  const handleRetry = useCallback(async () => {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const response = await fetch(`/api/analysis-jobs/${jobId}`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to retry job.");
+      }
+      window.location.reload();
+    } catch (err: any) {
+      setRetryError(err.message || "Failed to retry job.");
+      setRetrying(false);
+    }
+  }, [jobId]);
+
   useEffect(() => {
     fetchJobStatus();
   }, [fetchJobStatus]);
@@ -51,7 +75,28 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
     if (!job) return;
 
     if (job.status === "QUEUED" || job.status === "PROCESSING") {
+      if (startTimeRef.current === null) {
+        startTimeRef.current = Date.now();
+      }
+
+      const elapsed = Date.now() - (startTimeRef.current ?? Date.now());
+      if (elapsed >= MAX_WAIT_MS) {
+        setTimedOut(true);
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+        return;
+      }
+
       pollIntervalRef.current = setInterval(() => {
+        const pollElapsed = Date.now() - (startTimeRef.current ?? Date.now());
+        if (pollElapsed >= MAX_WAIT_MS) {
+          setTimedOut(true);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          return;
+        }
         fetchJobStatus();
       }, 3000);
     }
@@ -110,18 +155,50 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
           <p className="text-muted-foreground max-w-lg">
             Your repository analysis job is in the queue and will start processing shortly. Please wait...
           </p>
+          {timedOut && (
+            <div className="flex flex-col items-center space-y-4 mt-6" role="alert" aria-live="assertive">
+              <AlertCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
+              <p className="text-destructive font-medium">
+                Analysis timed out - something went wrong on our end. Please try again.
+              </p>
+              {retryError && (
+                <p className="text-destructive text-sm">{retryError}</p>
+              )}
+              <Button onClick={handleRetry} disabled={retrying} aria-label="Retry Job">
+                {retrying ? "Retrying..." : "Retry Job"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
       {job.status === "PROCESSING" && (
         <div className="w-full max-w-3xl" role="status" aria-label="Analysis is processing">
-          <RepositoryAnalysisProgress 
-            currentStep={job.progressPercent ? Math.floor((job.progressPercent / 100) * 5) : 0} 
-          />
-          {job.progressMessage && (
-            <p className="text-center text-muted-foreground mt-6 text-sm" aria-live="polite">
-              Status: {job.progressMessage}
-            </p>
+          {timedOut ? (
+            <div className="flex flex-col items-center space-y-4" role="alert" aria-live="assertive">
+              <AlertCircle className="h-12 w-12 text-destructive" aria-hidden="true" />
+              <h2 className="text-2xl font-bold font-heading text-foreground">Analysis Timed Out</h2>
+              <p className="text-muted-foreground max-w-md">
+                Analysis timed out - something went wrong on our end. Please try again.
+              </p>
+              {retryError && (
+                <p className="text-destructive text-sm">{retryError}</p>
+              )}
+              <Button onClick={handleRetry} disabled={retrying} aria-label="Retry Job">
+                {retrying ? "Retrying..." : "Retry Job"}
+              </Button>
+            </div>
+          ) : (
+            <>
+              <RepositoryAnalysisProgress 
+                currentStep={job.progressPercent ? Math.floor((job.progressPercent / 100) * 5) : 0} 
+              />
+              {job.progressMessage && (
+                <p className="text-center text-muted-foreground mt-6 text-sm" aria-live="polite">
+                  Status: {job.progressMessage}
+                </p>
+              )}
+            </>
           )}
         </div>
       )}
@@ -163,8 +240,8 @@ export default function AnalysisJobPage({ params }: { params: { jobId: string } 
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               Analyze Another
             </Button>
-            <Button onClick={() => window.location.reload()} variant="default" aria-label="Retry Job">
-              Retry Job
+            <Button onClick={handleRetry} disabled={retrying} aria-label="Retry Job">
+              {retrying ? "Retrying..." : "Retry Job"}
             </Button>
           </div>
         </div>
