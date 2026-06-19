@@ -933,11 +933,12 @@ export class RepositoryService {
    * Delete a repository and all its data
    */
   async deleteRepository(id: number, userId: number) {
-    const result = await prisma.repository.deleteMany({
+    // Verify ownership before deleting — use findFirst (not a destructive operation)
+    const repository = await prisma.repository.findFirst({
       where: { id, userId },
     });
 
-    if (result.count === 0) {
+    if (!repository) {
       throw new Error("Repository not found");
     }
 
@@ -959,9 +960,6 @@ export class RepositoryService {
         where: { id },
       }),
     ]);
-    await prisma.repository.delete({
-      where: { id },
-    });
 
     // Invalidate cached stats — repository no longer exists.
     ttlCache.deleteByPrefix(`repo-stats:${id}:`);
