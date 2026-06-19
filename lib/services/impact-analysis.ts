@@ -67,17 +67,14 @@ export class ImpactAnalysisService {
       const affectedFiles = this.graphService.getDownstreamDependents(graph, changedFileNames);
 
       // 5. Gather file contents for Gemini from the PR itself
+      // Fetch PR branch ref once — avoid N+1 GitHub API calls inside the loop
+      const prDetails = await github.getPullRequest(owner, repo, pullNumber);
+      const prBranch = prDetails.head.ref;
+
       const changedFilesContent = [];
       for (const f of sourceFiles) {
         // Use GitHub API to get the actual PR content (since local checkout is default branch)
-        // Wait, github.getFileContent gets default branch content unless we specify the ref.
-        // We will just fetch the PR diff file content by ref.
-        // But since we just need to assess risk, passing the base file content or PR modified content?
-        // Let's fetch using the PR branch ref.
         try {
-          const prDetails = await github.getPullRequest(owner, repo, pullNumber);
-          const prBranch = prDetails.head.ref;
-          
           const apiContent = await github.getFileContent(owner, repo, f.filename, prBranch);
           if (apiContent) {
             changedFilesContent.push({ path: f.filename, content: apiContent });
