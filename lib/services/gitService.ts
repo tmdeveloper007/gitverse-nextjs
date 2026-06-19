@@ -901,7 +901,10 @@ export class GitService {
       if (scope) args.push(scope);
       const { stdout } = await this.spawnGit(args, { timeout: DEFAULT_GIT_TIMEOUT_MS, signal });
 
-      const files: {
+      const filePaths = stdout.trim().split("\n").filter(Boolean);
+      // Process in chunks to avoid blocking the event loop on huge monorepos
+      const concurrencyLimit = 50;
+      const allResults: {
         path: string;
         name: string;
         size: number;
@@ -909,17 +912,21 @@ export class GitService {
         lines: number;
         language: string | null;
       }[] = [];
-      const filePaths = stdout.trim().split("\n").filter(Boolean);
-      // Process in chunks to avoid blocking the event loop on huge monorepos
-      const concurrencyLimit = 50;
       for (let i = 0; i < filePaths.length; i += concurrencyLimit) {
         const batch = filePaths.slice(i, i + concurrencyLimit);
 
-        await Promise.all(
-          batch.map(async (filePath) => {
+        const batchResults = await Promise.all(
+          batch.map(async (filePath): Promise<{
+            path: string;
+            name: string;
+            size: number;
+            extension: string | null;
+            lines: number;
+            language: string | null;
+          } | null> => {
             // Skip ignored files
             if (this.shouldIgnoreFile(filePath)) {
-              return;
+              return null;
             }
 
             try {
@@ -946,23 +953,23 @@ export class GitService {
               // Detect language from extension
               const language = this.detectLanguageFromExtension(extension);
 
-              files.push({
+              return {
                 path: filePath,
                 name,
                 size: stats.size,
                 extension,
                 lines: lineCount,
                 language,
-              });
+              };
             } catch {
               // Skip files that can't be accessed
-              return;
+              return null;
             }
-          }),
+          })
         );
+        allResults.push(...batchResults.filter((r): r is NonNullable<typeof r> => r !== null));
       }
-
-      return files;
+      return allResults;
     } catch (error: any) {
       throw new Error(`Failed to get file tree: ${error.message}`);
     }

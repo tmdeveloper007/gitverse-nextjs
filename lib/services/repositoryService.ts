@@ -18,6 +18,7 @@ import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
 import { getGithubAccessToken } from "./githubAuthService";
 import { detectMonorepoPackages } from "../utils/monorepoUtils";
 import { getGeminiService } from "./geminiService";
+import { isValidGitScope } from "@/lib/utils/validators";
 
 /** Shape returned by getRepositoryStats / _fetchRepositoryStats. */
 interface RepoStats {
@@ -664,7 +665,13 @@ export class RepositoryService {
       // Automatically queue AnalysisJobs for any detected Monorepo sub-packages
       if (subPackages.length > 0) {
         await report({ progressPercent: 98, progressMessage: "Queueing sub-package analysis..." });
-        for (const pkgPath of subPackages) {
+        // Validate all sub-package paths before creating any sub-repositories
+        const validSubPackages = subPackages.filter(pkgPath => isValidGitScope(pkgPath));
+        const invalidCount = subPackages.length - validSubPackages.length;
+        if (invalidCount > 0) {
+          console.warn(`[analyzeRepository:${repositoryId}] Skipping ${invalidCount} sub-package paths that failed scope validation`);
+        }
+        for (const pkgPath of validSubPackages) {
           try {
             const subRepo = await this.createRepository({
               name: `${repository.name}/${pkgPath}`,

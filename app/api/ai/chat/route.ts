@@ -212,8 +212,16 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
           const cleanedJson = selectionResult.text
             .replace(/```json|```/g, "")
             .trim();
-          selectedPaths = JSON.parse(cleanedJson);
-        } catch {
+          const parsed = JSON.parse(cleanedJson);
+          // Validate AI returned an array of strings before using it
+          if (Array.isArray(parsed) && parsed.every(p => typeof p === "string")) {
+            selectedPaths = parsed;
+          } else {
+            console.warn("[RAG] AI returned unexpected format for selectedPaths, using fallback");
+            selectedPaths = candidatePaths.slice(0, 2);
+          }
+        } catch (e) {
+          console.warn("[RAG] Failed to parse selectedPaths from AI response:", e);
           selectedPaths = candidatePaths.slice(0, 2);
         }
 
