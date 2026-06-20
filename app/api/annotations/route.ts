@@ -41,8 +41,20 @@ export async function POST(request: NextRequest) {
     
     const { repositoryId, targetType, targetId, content, annotationType, positionX, positionY } = body;
 
+    // Maximum annotation content size to prevent memory exhaustion (issue #2073).
+    // The DB column is @db.Text (effectively unlimited), but we enforce an
+    // application-level cap here so a single oversized payload cannot OOM the worker.
+    const MAX_ANNOTATION_CONTENT_LENGTH = 100 * 1024; // 100 KB
+
     if (!repositoryId || !targetType || !targetId || !content || !annotationType) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    if (typeof content !== "string" || content.length > MAX_ANNOTATION_CONTENT_LENGTH) {
+      return NextResponse.json(
+        { error: `Content exceeds maximum allowed length of ${MAX_ANNOTATION_CONTENT_LENGTH} characters` },
+        { status: 400 }
+      );
     }
 
     // Verify user has access to repo (simple check, assume requireAuth is sufficient or add repo ownership check)
