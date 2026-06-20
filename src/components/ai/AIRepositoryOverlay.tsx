@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, X, Minimize2, Maximize2, Sparkles, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize from "rehype-sanitize";
+import { strictMarkdownSchema, sanitizeMarkdownHref } from "@/lib/utils/markdownSanitization";
 import { Card, CopyToClipboard } from "@/components/ui";
 import { geminiService, ChatMessage } from "@/services/gemini";
 import { useToast } from "@/hooks/use-toast";
@@ -269,14 +270,9 @@ User Question: ${currentInput}`;
     }
   };
 
-  const chatMarkdownSchema = {
-    ...defaultSchema,
-    attributes: {
-      ...defaultSchema.attributes,
-      code: [...(defaultSchema.attributes?.code || []), "className"],
-      span: [...(defaultSchema.attributes?.span || []), "className"],
-    },
-  };
+  // strictMarkdownSchema hardens SVG stripping, blocks javascript:/data: URLs,
+  // and strips event-handler attributes — see lib/utils/markdownSanitization.ts
+  const chatMarkdownSchema = strictMarkdownSchema;
 
   function ChatMarkdown({ content }: { content: string }) {
     return (
@@ -287,9 +283,9 @@ User Question: ${currentInput}`;
           p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
           a: ({ href, children, ...props }) => (
             <a
-              href={href}
+              href={sanitizeMarkdownHref(href)}
               target="_blank"
-              rel="noreferrer"
+              rel="noreferrer noopener"
               className="text-accent underline underline-offset-4"
               {...props}
             >

@@ -10,7 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize from "rehype-sanitize";
+import { strictMarkdownSchema, sanitizeMarkdownHref } from "@/lib/utils/markdownSanitization";
 
 interface AIChatInterfaceProps {
   repositoryContext?: {
@@ -25,14 +26,9 @@ interface AIChatInterfaceProps {
   };
 }
 
-const mentorMarkdownSchema = {
-  ...defaultSchema,
-  attributes: {
-    ...defaultSchema.attributes,
-    code: [...(defaultSchema.attributes?.code || []), "className"],
-    span: [...(defaultSchema.attributes?.span || []), "className"],
-  },
-};
+// strictMarkdownSchema hardens SVG stripping, blocks javascript:/data: URLs,
+// and strips event-handler attributes — see lib/utils/markdownSanitization.ts
+const mentorMarkdownSchema = strictMarkdownSchema;
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -75,9 +71,9 @@ function ChatMarkdown({ content }: { content: string }) {
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
         a: ({ href, children, ...props }) => (
           <a
-            href={href}
+            href={sanitizeMarkdownHref(href)}
             target="_blank"
-            rel="noreferrer"
+            rel="noreferrer noopener"
             className="text-accent underline underline-offset-4"
             {...props}
           >

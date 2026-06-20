@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2, Send, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize from "rehype-sanitize";
+import { strictMarkdownSchema, sanitizeMarkdownHref } from "@/lib/utils/markdownSanitization";
 import {
   Card,
   CardContent,
@@ -30,14 +31,9 @@ type MentorContributor = {
   deletions?: number | null;
 };
 
-const mentorMarkdownSchema = {
-  ...defaultSchema,
-  attributes: {
-    ...defaultSchema.attributes,
-    code: [...(defaultSchema.attributes?.code || []), "className"],
-    span: [...(defaultSchema.attributes?.span || []), "className"],
-  },
-};
+// strictMarkdownSchema hardens SVG stripping, blocks javascript:/data: URLs,
+// and strips event-handler attributes — see lib/utils/markdownSanitization.ts
+const mentorMarkdownSchema = strictMarkdownSchema;
 
 function MentorMarkdown({ content }: { content: string }) {
   return (
@@ -48,7 +44,7 @@ function MentorMarkdown({ content }: { content: string }) {
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
         a: ({ href, children, ...props }) => (
           <a
-            href={href}
+            href={sanitizeMarkdownHref(href)}
             target="_blank"
             rel="noreferrer"
             className="text-accent underline underline-offset-4"
