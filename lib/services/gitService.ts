@@ -915,11 +915,11 @@ export class GitService {
       for (let i = 0; i < filePaths.length; i += concurrencyLimit) {
         const batch = filePaths.slice(i, i + concurrencyLimit);
 
-        await Promise.all(
+        const batchResults = await Promise.all(
           batch.map(async (filePath) => {
             // Skip ignored files
             if (this.shouldIgnoreFile(filePath)) {
-              return;
+              return null;
             }
 
             try {
@@ -946,20 +946,21 @@ export class GitService {
               // Detect language from extension
               const language = this.detectLanguageFromExtension(extension);
 
-              files.push({
+              return {
                 path: filePath,
                 name,
                 size: stats.size,
                 extension,
                 lines: lineCount,
                 language,
-              });
+              };
             } catch {
               // Skip files that can't be accessed
-              return;
+              return null;
             }
           }),
         );
+        files.push(...batchResults.filter((r): r is typeof files[number] => r !== null));
       }
 
       return files;
