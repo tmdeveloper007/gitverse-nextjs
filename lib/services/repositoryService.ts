@@ -17,6 +17,7 @@ import { gitverseConfigParser, ParsedRepositoryKnowledge } from "../parsers/gitv
 import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
 import { getGithubAccessToken } from "./githubAuthService";
 import { detectMonorepoPackages } from "../utils/monorepoUtils";
+import { isValidGitScope } from "../utils/validators";
 import { getGeminiService } from "./geminiService";
 
 /** Shape returned by getRepositoryStats / _fetchRepositoryStats. */
@@ -664,7 +665,11 @@ export class RepositoryService {
       // Automatically queue AnalysisJobs for any detected Monorepo sub-packages
       if (subPackages.length > 0) {
         await report({ progressPercent: 98, progressMessage: "Queueing sub-package analysis..." });
-        for (const pkgPath of subPackages) {
+        const validSubPackages = subPackages.filter((p) => isValidGitScope(p));
+        if (validSubPackages.length < subPackages.length) {
+          console.warn(`Skipped ${subPackages.length - validSubPackages.length} invalid sub-package paths (malformed scope)`);
+        }
+        for (const pkgPath of validSubPackages) {
           try {
             const subRepo = await this.createRepository({
               name: `${repository.name}/${pkgPath}`,
