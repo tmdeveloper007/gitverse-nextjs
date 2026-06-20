@@ -5,6 +5,7 @@ import type { JWTPayload } from "./auth";
 import prisma from "@/lib/prisma";
 import { getToken } from "next-auth/jwt";
 import { hashApiKey } from "@/lib/utils/api-key";
+import { withDbRetry } from "@/lib/utils/dbRetry";
 
 export interface AuthenticatedRequest {
   user: JWTPayload;
@@ -31,22 +32,28 @@ export async function getAuthUser(
     if (token.startsWith("gv_")) {
       const hashed = hashApiKey(token);
       try {
-        const apiKey = await prisma.apiKey.findUnique({ where: { hashedKey: hashed } });
+        const apiKey = await withDbRetry(() =>
+          prisma.apiKey.findUnique({ where: { hashedKey: hashed } }),
+        );
         if (apiKey && apiKey.expiresAt > new Date()) {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: apiKey.userId },
-            select: { id: true, email: true, name: true, tokenVersion: true, lockedUntil: true },
-          });
+          const dbUser = await withDbRetry(() =>
+            prisma.user.findUnique({
+              where: { id: apiKey.userId },
+              select: { id: true, email: true, name: true, tokenVersion: true, lockedUntil: true },
+            }),
+          );
           if (dbUser && (!dbUser.lockedUntil || dbUser.lockedUntil <= new Date())) {
-            await prisma.apiKey.update({
-              where: { id: apiKey.id },
-              data: { lastUsedAt: new Date() },
-            });
+            await withDbRetry(() =>
+              prisma.apiKey.update({
+                where: { id: apiKey.id },
+                data: { lastUsedAt: new Date() },
+              }),
+            );
             userPayload = { userId: dbUser.id, email: dbUser.email, tokenVersion: dbUser.tokenVersion };
           }
         }
       } catch {
-        // DB error — fall through to other auth methods
+        // Non-transient error (e.g., invalid token format) — fall through to other auth methods
       }
     }
 
@@ -56,14 +63,16 @@ export async function getAuthUser(
         const payload = await verifyTokenWithUserValidation(token);
         
         if (payload) {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: payload.userId },
-            select: {
-              id: true,
-              tokenVersion: true,
-              lockedUntil: true,
-            },
-          });
+          const dbUser = await withDbRetry(() =>
+            prisma.user.findUnique({
+              where: { id: payload.userId },
+              select: {
+                id: true,
+                tokenVersion: true,
+                lockedUntil: true,
+              },
+            }),
+          );
 
           if (!dbUser) {
             return null;
@@ -101,15 +110,17 @@ export async function getAuthUser(
           return null;
         }
 
-        const dbUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            passwordChangedAt: true,
-            tokenVersion: true,
-            lockedUntil: true,
-          },
-        });
+        const dbUser = await withDbRetry(() =>
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              id: true,
+              passwordChangedAt: true,
+              tokenVersion: true,
+              lockedUntil: true,
+            },
+          }),
+        );
 
         if (!dbUser) {
           return null;
@@ -163,16 +174,18 @@ export async function getAuthUser(
 
   if (!userPayload) return null;
 
-  // Final verification: ensure user still exists
+  // Final verification: ensure user still exists (with retry for transient DB errors)
   try {
-    const finalUser = await prisma.user.findUnique({
-      where: { id: userPayload.userId },
-      select: {
-        id: true,
-        tokenVersion: true,
-        lockedUntil: true,
-      },
-    });
+    const finalUser = await withDbRetry(() =>
+      prisma.user.findUnique({
+        where: { id: userPayload.userId },
+        select: {
+          id: true,
+          tokenVersion: true,
+          lockedUntil: true,
+        },
+      }),
+    );
 
     if (!finalUser) {
       return null;
