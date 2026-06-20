@@ -212,8 +212,15 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
           const cleanedJson = selectionResult.text
             .replace(/```json|```/g, "")
             .trim();
-          selectedPaths = JSON.parse(cleanedJson);
-        } catch {
+          const parsed = JSON.parse(cleanedJson);
+          if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+            selectedPaths = parsed;
+          } else {
+            console.warn("AI returned non-string-array for selectedPaths, falling back:", typeof parsed);
+            selectedPaths = candidatePaths.slice(0, 2);
+          }
+        } catch (err) {
+          console.error("Failed to parse AI file selection response:", err);
           selectedPaths = candidatePaths.slice(0, 2);
         }
 
