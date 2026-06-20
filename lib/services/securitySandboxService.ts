@@ -103,12 +103,12 @@ CMD ["echo", "sandbox-ready"]
 
 async function runSecurityTests(
   imageTag: string,
+  containerName: string,
 ): Promise<{
   testResults: SandboxTestResult[];
   exploitPayload?: string;
   stackTrace?: string;
 }> {
-  const containerName = `gitverse-test-${crypto.randomBytes(8).toString("hex")}`;
   const testResults: SandboxTestResult[] = [];
   let exploitPayload: string | undefined;
   let stackTrace: string | undefined;
@@ -282,15 +282,22 @@ export async function runSecuritySandbox(params: {
       data: { imageUrl: imageTag },
     });
 
-    // Run security tests with timeout
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Sandbox timeout")), SANDBOX_TIMEOUT_MS);
-    });
+    // Run security tests with timeout.
+    // When the timeout fires we must clean up the container immediately rather than
+    // waiting for runSecurityTests to finish (which can hang indefinitely if a
+    // container is stuck).  We generate the container name here so we can kill it
+    // from the outer scope on timeout.
+    const containerName = `gitverse-test-${crypto.randomBytes(8).toString("hex")}`;
+    const timeoutId = setTimeout(() => {
+      // Fire-and-forget: stop + remove the container immediately so it does not
+      // leak CPU/memory while runSecurityTests continues running in the background.
+      void runDockerCommand(["stop", "-t", "2", containerName]).catch(() => null);
+      void runDockerCommand(["rm", "-f", containerName]).catch(() => null);
+    }, SANDBOX_TIMEOUT_MS);
 
-    const result = await Promise.race([
-      runSecurityTests(imageTag),
-      timeoutPromise,
-    ]);
+    const result = await runSecurityTests(imageTag, containerName).finally(() =>
+      clearTimeout(timeoutId),
+    );
 
     // Update sandbox record with results
     const hasSecrets = (result.testResults as any[]).some(
