@@ -19,14 +19,13 @@ function getRetentionThreshold(): Date {
 }
 
 export function getClientIp(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const ip = forwarded.split(",")[0]?.trim();
-    if (ip && ip !== "unknown") return ip;
+  // Prefer request.ip, which is populated by Next.js from the actual connection
+  // IP when running behind a trusted reverse proxy (Vercel, AWS ALB, etc.).
+  // This avoids IP spoofing via client-controlled x-forwarded-for / x-real-ip.
+  if (request.ip && request.ip !== "unknown") {
+    return request.ip;
   }
-  const realIp = request.headers.get("x-real-ip");
-  if (realIp && realIp !== "unknown") return realIp;
-  return request.ip ?? "unknown";
+  return "unknown";
 }
 
 async function maybeCleanupStaleAttempts() {
