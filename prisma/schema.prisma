@@ -227,6 +227,7 @@ model Repository {
   forks                        Int                           @default(0)
   size                         Int                           @default(0) // Size in bytes
   lastAnalyzedAt               DateTime?                     @map("last_analyzed_at")
+  analyzedCommitSha            String?                       @map("analyzed_commit_sha")
   status                       String                        @default("pending") // pending, analyzing, completed, failed
   isPinned                     Boolean                       @default(false) @map("is_pinned")
   pinnedAt                     DateTime?                     @map("pinned_at")
