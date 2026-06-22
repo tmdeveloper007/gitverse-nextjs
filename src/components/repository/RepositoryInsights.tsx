@@ -10,6 +10,7 @@ import DependencyVulnerabilityScanner from "./DependencyVulnerabilityScanner";
 import CodeComplexityAnalyzer from "./CodeComplexityAnalyzer";
 import ContributorOnboardingChatbot from "./ContributorOnboardingChatbot";
 import RepositoryHealthDashboard from "./RepositoryHealthDashboard";
+import ArchitectureChangeComparison from "./ArchitectureChangeComparison";
 import { useState } from 'react'
 import { toast } from '@/hooks/use-toast'
 import axios from 'axios'
@@ -281,6 +282,9 @@ export function RepositoryInsights({
 
       {/* Smart Repository Health Dashboard */}
       <RepositoryHealthDashboard />
+
+      {/* Repository Architecture Change Comparison */}
+      <ArchitectureChangeComparison />
 
     </div>
   )
