@@ -45,6 +45,8 @@ interface CodeMetricsProps {
   repository?: RepositoryData;
 }
 
+export type { CodeMetricsProps };
+
 export function CodeMetrics({ repository }: CodeMetricsProps) {
   const getLanguageColor = (name: string): string => {
     const colors: Record<string, string> = {
