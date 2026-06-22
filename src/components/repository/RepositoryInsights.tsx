@@ -11,6 +11,7 @@ import CodeComplexityAnalyzer from "./CodeComplexityAnalyzer";
 import ContributorOnboardingChatbot from "./ContributorOnboardingChatbot";
 import RepositoryHealthDashboard from "./RepositoryHealthDashboard";
 import ArchitectureChangeComparison from "./ArchitectureChangeComparison";
+import DocumentationGenerator from "./DocumentationGenerator";
 import { useState } from 'react'
 import { toast } from '@/hooks/use-toast'
 import axios from 'axios'
@@ -285,6 +286,9 @@ export function RepositoryInsights({
 
       {/* Repository Architecture Change Comparison */}
       <ArchitectureChangeComparison />
+
+      {/* AI-Based Documentation Generator */}
+      <DocumentationGenerator />
 
     </div>
   )
