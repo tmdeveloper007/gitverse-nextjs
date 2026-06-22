@@ -9,6 +9,7 @@ import ContributorIssueRecommendations from "./ContributorIssueRecommendations";
 import DependencyVulnerabilityScanner from "./DependencyVulnerabilityScanner";
 import CodeComplexityAnalyzer from "./CodeComplexityAnalyzer";
 import ContributorOnboardingChatbot from "./ContributorOnboardingChatbot";
+import RepositoryHealthDashboard from "./RepositoryHealthDashboard";
 import { useState } from 'react'
 import { toast } from '@/hooks/use-toast'
 import axios from 'axios'
@@ -277,6 +278,9 @@ export function RepositoryInsights({
 
       {/* AI Contributor Onboarding Chatbot */}
       <ContributorOnboardingChatbot />
+
+      {/* Smart Repository Health Dashboard */}
+      <RepositoryHealthDashboard />
 
     </div>
   )
