@@ -102,8 +102,8 @@ export async function DELETE(
 
     if (error.message === "Repository not found") {
       return NextResponse.json(
-        { error: "Repository not found or you don't have permission to delete it" },
-        { status: 403, headers: securityHeaders }
+        { error: "Repository not found" },
+        { status: 404, headers: securityHeaders }
       );
     }
 
