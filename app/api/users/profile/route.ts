@@ -9,6 +9,7 @@ import {
   recordAttempt,
   clearFailedAttempts,
 } from "@/lib/services/rateLimitService";
+import { validateSafeUrl } from "@/lib/utils/ssrfValidator";
 
 const ALLOWED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
 const ALLOWED_DATA_IMAGE_TYPES = [
@@ -371,6 +372,15 @@ export async function PUT(request: NextRequest) {
 
         updateData.image = avatar;
       } else if (avatar.startsWith("http")) {
+        // Validate HTTP(S) avatar URLs against SSRF to prevent probing
+        // internal services (e.g. AWS metadata at 169.254.169.254).
+        const isSafe = await validateSafeUrl(avatar);
+        if (!isSafe) {
+          return NextResponse.json(
+            { error: "Avatar URL resolves to an untrusted or private network address." },
+            { status: 400 }
+          );
+        }
         updateData.image = avatar;
       }
     }

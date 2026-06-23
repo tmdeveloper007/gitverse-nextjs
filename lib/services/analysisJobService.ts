@@ -428,7 +428,7 @@ export class AnalysisJobService {
         WITH candidate AS (
           SELECT a1.id
           FROM analysis_jobs a1
-          WHERE a1.next_run_at <= NOW()
+          WHERE COALESCE(a1.next_run_at, NOW()) <= NOW()
             AND a1.status IN ('QUEUED', 'PROCESSING')
             AND (a1.lock_expires_at IS NULL OR a1.lock_expires_at < NOW())
             AND NOT EXISTS (

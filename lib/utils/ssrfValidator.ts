@@ -13,9 +13,33 @@ import * as dns from 'dns/promises';
  * - ::1/128 (IPv6 Loopback)
  * - fc00::/7 (IPv6 Unique Local Addresses)
  * - fe80::/10 (IPv6 Link-local)
+ * - ::ffff:0.0.0.0/8 (IPv6-mapped IPv4 private ranges)
  */
 export function isPrivateIP(ip: string): boolean {
-  // IPv4 regex parsing
+  // IPv6-mapped IPv4 address: extract the embedded IPv4 and check it.
+  // e.g. "::ffff:127.0.0.1" -> check 127.0.0.1 as private IPv4.
+  const ipv6MappedMatch = ip.match(/^::ffff:(\d+)\.(\d+)\.(\d+)\.(\d+)$/i);
+  if (ipv6MappedMatch) {
+    const parts = [
+      parseInt(ipv6MappedMatch[1], 10),
+      parseInt(ipv6MappedMatch[2], 10),
+      parseInt(ipv6MappedMatch[3], 10),
+      parseInt(ipv6MappedMatch[4], 10),
+    ];
+
+    if (
+      parts[0] === 10 || // 10.0.0.0/8
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || // 172.16.0.0/12
+      (parts[0] === 192 && parts[1] === 168) || // 192.168.0.0/16
+      parts[0] === 127 || // 127.0.0.0/8
+      (parts[0] === 169 && parts[1] === 254) || // 169.254.0.0/16
+      parts[0] === 0 // 0.0.0.0/8
+    ) {
+      return true;
+    }
+  }
+
+  // Standard IPv4 regex parsing
   const ipv4Match = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
     const parts = [
