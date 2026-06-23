@@ -213,8 +213,13 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
             .replace(/```json|```/g, "")
             .trim();
           selectedPaths = JSON.parse(cleanedJson);
-        } catch {
-          selectedPaths = candidatePaths.slice(0, 2);
+        } catch (parseErr) {
+          console.warn(
+            `[Chat] AI file selection returned unparseable JSON: ${selectionResult.text.slice(0, 100)}`,
+          );
+          throw new Error(
+            "AI file selection returned an invalid response. Please try again.",
+          );
         }
 
         // Fetch actual file contents
