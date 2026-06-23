@@ -13,10 +13,10 @@ async function kickLocalRunner(request: NextRequest, jobId: string) {
   const origin = new URL(request.url).origin;
   const secret = process.env.ANALYSIS_RUNNER_SECRET;
 
-  void fetch(`${origin}/api/internal/run-analysis`, {
+  fetch(`${origin}/api/internal/run-analysis`, {
     method: "POST",
     headers: secret ? { "x-analysis-runner-secret": secret } : undefined,
-  }).catch(() => {});
+  }).catch(err => console.warn(`[AnalysisJob] Local runner kick failed for job ${jobId}:`, err));
 }
 
 
