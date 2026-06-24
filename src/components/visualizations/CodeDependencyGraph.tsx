@@ -54,10 +54,27 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const [announcement, setAnnouncement] = useState("");
   const [heatmapMode, setHeatmapMode] = useState(false);
 
+  // Hoist these declarations before nodeChurnMap so TypeScript can resolve the
+  // graphData reference in the useMemo dependency array without a TDZ error.
+  const completeGraph = useMemo(() => {
+    const analyzer = new GraphAnalyzer();
+    return analyzer.buildDependencyGraph(repository?.files || []);
+  }, [repository?.files]);
+
+  const graphData = useMemo(() => {
+    const filterService = new GraphFilteringService();
+    return filterService.applyFilters(completeGraph.nodes, completeGraph.links, {
+      expandedNodes,
+      hiddenDirectories: filters.hiddenDirectories,
+      hiddenFileTypes: filters.hiddenFileTypes,
+      visibleDomains: filters.visibleDomains
+    });
+  }, [completeGraph, expandedNodes, filters]);
+
   const { nodeChurnMap, maxChurn } = useMemo(() => {
     const map = new Map<string, number>();
     if (!repository?.commits) return { nodeChurnMap: map, maxChurn: 0 };
-    
+
     repository.commits.forEach((c: any) => {
       if (c.fileChanges) {
         c.fileChanges.forEach((fc: any) => {
@@ -79,7 +96,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
         }
         map.set(node.id, count);
       } else {
-         map.set(node.id, map.get(node.path) || 0);
+        map.set(node.id, map.get(node.path) || 0);
       }
     });
 
@@ -87,7 +104,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     for (const val of map.values()) {
       if (val > max) max = val;
     }
-    
+
     return { nodeChurnMap: map, maxChurn: max };
   }, [repository?.commits, graphData.nodes]);
 
@@ -116,21 +133,6 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const {
     expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
   } = useGraphDrilldown();
-  
-  const completeGraph = useMemo(() => {
-    const analyzer = new GraphAnalyzer();
-    return analyzer.buildDependencyGraph(repository?.files || []);
-  }, [repository?.files]);
-
-  const graphData = useMemo(() => {
-    const filterService = new GraphFilteringService();
-    return filterService.applyFilters(completeGraph.nodes, completeGraph.links, {
-      expandedNodes,
-      hiddenDirectories: filters.hiddenDirectories,
-      hiddenFileTypes: filters.hiddenFileTypes,
-      visibleDomains: filters.visibleDomains
-    });
-  }, [completeGraph, expandedNodes, filters]);
 
   const exportGraph = async (format: "png" | "svg") => {
     if (!exportRef.current) return;
