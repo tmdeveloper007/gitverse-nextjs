@@ -33,6 +33,7 @@ import {
   XCircle,
   FileX2,
   MessageSquare,
+  RefreshCw,
 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
@@ -410,6 +411,37 @@ export default function RepositoryAnalysis() {
     }
   };
 
+  const handleRetry = async () => {
+    if (!id || !repository) return;
+    setError(null);
+    setIsAnalyzing(true);
+
+    try {
+      const token = localStorage.getItem("gitverse_token");
+      await axios.post(
+        buildApiUrl(`/api/repositories/${id}/analyze`),
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      // Refresh to pick up the new job.
+      await fetchRepository();
+    } catch (err: any) {
+      setIsAnalyzing(false);
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to start analysis. Please try again.";
+      setError(msg);
+      toast({
+        title: "Retry failed",
+        description: msg,
+        variant: "destructive",
+      });
+    }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case "overview":
@@ -530,9 +562,20 @@ export default function RepositoryAnalysis() {
                     />
                   </div>
                   {error && (
-                    <p className="text-xs sm:text-sm text-red-500 font-medium mt-1">
-                      {error}
-                    </p>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs sm:text-sm text-red-500 font-medium">
+                        {error}
+                      </p>
+                      {repository && (
+                        <button
+                          onClick={handleRetry}
+                          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors w-fit"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Retry Analysis
+                        </button>
+                      )}
+                    </div>
                   )}
               </div>
               </div>

@@ -261,7 +261,9 @@ export class RepositoryService {
 
     await report({ progressPercent: 1, progressMessage: "Starting analysis..." });
 
-    const timeoutMs = opts?.timeoutMs ?? 15 * 60 * 1000; // 15 minutes default
+    // Increased from 15 to 30 minutes to handle large repositories (>1000 files).
+    // For very large repos, callers can override via opts.timeoutMs (up to 60 min).
+    const timeoutMs = opts?.timeoutMs ?? 30 * 60 * 1000; // 30 minutes default
     const controller = new AbortController();
     const { signal } = controller;
     const timeoutId = setTimeout(() => {
@@ -270,7 +272,11 @@ export class RepositoryService {
 
     const checkAborted = () => {
       if (signal.aborted) {
-        throw new Error(`Repository analysis timed out after ${timeoutMs / 60000} minutes`);
+        throw new Error(
+          timeoutMs >= 60 * 60 * 1000
+            ? `Repository analysis timed out after ${timeoutMs / 60000} minutes. The repository may be too large to analyze. Try analyzing a subdirectory or a specific scope.`
+            : `Repository analysis timed out after ${timeoutMs / 60000} minutes. This can happen with very large repositories. Try again or analyze a smaller scope.`,
+        );
       }
     };
 
