@@ -16,15 +16,9 @@ async function kickLocalRunner(request: NextRequest, jobId: string) {
   fetch(`${origin}/api/internal/run-analysis`, {
     method: "POST",
     headers: secret ? { "x-analysis-runner-secret": secret } : undefined,
-<<<<<<< HEAD
   }).catch((err) => {
     console.error(`[kickLocalRunner] Failed to kick local analysis runner for job ${jobId}:`, err);
   });
-=======
-  }).catch((err) => {
-    console.error(`[kickLocalRunner] Failed to kick local analysis runner for job ${jobId}:`, err);
-  });
->>>>>>> 5be61c2 (fix : log errors instead of silently swallowing fetch failures in kickLocalRunner)
 }
 
 
