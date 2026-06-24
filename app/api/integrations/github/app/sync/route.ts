@@ -68,30 +68,30 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Avoid interactive transactions here (P2028 timeouts under small pools / Neon).
-      const rows = repos.map((r) => ({
-        userId: user.userId,
-        repoFullName: r.full_name,
-        enabled: false,
-        installationId: BigInt(installationId),
-      }));
-
-      await prisma.gitHubRepo.createMany({
-        data: rows,
-        skipDuplicates: true,
-      });
-
-      // Update installationId for any existing rows.
-      const chunkSize = 200;
+      // Use upsert instead of createMany + updateMany to handle soft-deleted rows properly
+      // (createMany with skipDuplicates silently skips soft-deleted records, leaving them broken).
+      const chunkSize = 50;
       for (let i = 0; i < repos.length; i += chunkSize) {
-        const chunk = repos.slice(i, i + chunkSize).map((r) => r.full_name);
-        await prisma.gitHubRepo.updateMany({
-          where: {
-            userId: user.userId,
-            repoFullName: { in: chunk },
-          },
-          data: { installationId: BigInt(installationId) },
-        });
+        const chunk = repos.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map((r) =>
+            prisma.gitHubRepo.upsert({
+              where: {
+                userId_repoFullName: { userId: user.userId, repoFullName: r.full_name },
+              },
+              create: {
+                userId: user.userId,
+                repoFullName: r.full_name,
+                enabled: false,
+                installationId: BigInt(installationId),
+              },
+              update: {
+                enabled: false,
+                installationId: BigInt(installationId),
+              },
+            }),
+          ),
+        );
       }
 
       results.push({ installationId, reposSeen: repos.length });

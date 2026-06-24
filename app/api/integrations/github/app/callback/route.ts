@@ -5,7 +5,7 @@ import { GitHubAppService } from "@/lib/services/githubAppService";
 import { GitHubService } from "@/lib/services/githubService";
 import { verifySignedState } from "@/lib/utils/signedState";
 
-type InstallState = { userId: number; ts: number; nonce?: string };
+type InstallState = { userId: number; ts: number; nonce?: string; tabId?: string };
 
 function getPublicOrigin(request: NextRequest): string {
   const forwardedProtoRaw = request.headers.get("x-forwarded-proto") || "";
@@ -90,36 +90,35 @@ export async function GET(request: NextRequest) {
 
     // IMPORTANT: avoid interactive transactions here.
     // Neon/low pool sizes can cause Prisma to time out acquiring a transaction connection (P2028).
+    // Use upsert instead of createMany + updateMany to handle soft-deleted rows properly
+    // (createMany with skipDuplicates silently skips soft-deleted records, leaving them broken).
     if (all.length > 0) {
-      const rows = all.map((r) => ({
-        userId,
-        repoFullName: r.full_name,
-        enabled: false,
-        installationId: BigInt(installationId),
-      }));
-
-      // Insert new rows (ignore duplicates on (userId, repoFullName)).
-      await prisma.gitHubRepo.createMany({
-        data: rows,
-        skipDuplicates: true,
-      });
-
-      // Update installationId for any existing rows for these repos.
-      // Batch to keep query sizes reasonable.
-      const chunkSize = 200;
+      const chunkSize = 50;
       for (let i = 0; i < all.length; i += chunkSize) {
-        const chunk = all.slice(i, i + chunkSize).map((r) => r.full_name);
-        await prisma.gitHubRepo.updateMany({
-          where: {
-            userId,
-            repoFullName: { in: chunk },
-          },
-          data: {
-            installationId: BigInt(installationId),
-          },
-        });
+        const chunk = all.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map((r) =>
+            prisma.gitHubRepo.upsert({
+              where: { userId_repoFullName: { userId, repoFullName: r.full_name } },
+              create: {
+                userId,
+                repoFullName: r.full_name,
+                enabled: false,
+                installationId: BigInt(installationId),
+              },
+              update: {
+                enabled: false,
+                installationId: BigInt(installationId),
+              },
+            }),
+          ),
+        );
       }
     }
+
+    // Pass tabId so the receiving tab can validate ownership of this callback.
+    const tabId = payload.tabId as string | undefined;
+    if (tabId) redirectUrl.searchParams.set("tabId", tabId);
 
     redirectUrl.searchParams.set("install", "ok");
     redirectUrl.searchParams.set("setup_action", setupAction || "");
