@@ -54,8 +54,16 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const [announcement, setAnnouncement] = useState("");
   const [heatmapMode, setHeatmapMode] = useState(false);
 
-  // Hoist these declarations before nodeChurnMap so TypeScript can resolve the
-  // graphData reference in the useMemo dependency array without a TDZ error.
+  // Filters and drilldown state must be declared before the useMemos that reference them.
+  const {
+    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters
+  } = useGraphFilters();
+
+  const {
+    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
+  } = useGraphDrilldown();
+
+  // Hoisted before nodeChurnMap to resolve the TypeScript TDZ error.
   const completeGraph = useMemo(() => {
     const analyzer = new GraphAnalyzer();
     return analyzer.buildDependencyGraph(repository?.files || []);
@@ -125,14 +133,6 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       (selectedCommit.fileChanges || []).map((fc: any) => [fc.path, fc.changeType || fc.type])
     );
   }, [selectedCommit]);
-
-  const { 
-    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters 
-  } = useGraphFilters();
-
-  const {
-    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
-  } = useGraphDrilldown();
 
   const exportGraph = async (format: "png" | "svg") => {
     if (!exportRef.current) return;
