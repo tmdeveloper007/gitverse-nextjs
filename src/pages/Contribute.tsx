@@ -163,11 +163,25 @@ export default function Contribute() {
       const url = new URL(window.location.href);
       const install = (url.searchParams.get("install") || "").trim();
       if (install === "ok") {
-        // Small delay: allow DB writes from callback to settle.
-        window.setTimeout(() => {
-          void fetchConnectedRepos();
-          void onLoadRepos();
-        }, 250);
+        // Validate that this tab owns the callback (multi-tab anti-confusion check).
+        // The callback passes tabId as a URL param. We check that a pending state
+        // exists in sessionStorage — if not, this callback belongs to another tab.
+        const storedState = sessionStorage.getItem("gv_install_state") || "";
+        const storedTs = Number(sessionStorage.getItem("gv_install_state_ts") || 0);
+        const isRecent =
+          storedState.length > 0 && Date.now() - storedTs < 20 * 60 * 1000;
+
+        if (isRecent) {
+          // Small delay: allow DB writes from callback to settle.
+          window.setTimeout(() => {
+            void fetchConnectedRepos();
+            void onLoadRepos();
+          }, 250);
+
+          // Clear sessionStorage now that this callback has been processed.
+          sessionStorage.removeItem("gv_install_state");
+          sessionStorage.removeItem("gv_install_state_ts");
+        }
 
         // Remove install-related params so this runs only once.
         for (const key of [
@@ -175,6 +189,7 @@ export default function Contribute() {
           "setup_action",
           "installation_id",
           "reason",
+          "tabId",
         ]) {
           url.searchParams.delete(key);
         }
@@ -244,9 +259,19 @@ export default function Contribute() {
       );
 
       const url = res.data?.url as string | undefined;
-      if (!url) {
+      const state = res.data?.state as string | undefined;
+      if (!url || !state) {
         throw new Error("Install URL missing from response");
       }
+
+      // Store the per-tab state in sessionStorage so the callback can validate it,
+      // preventing one tab's OAuth flow from interfering with another tab's flow.
+      sessionStorage.setItem("gv_install_state", state);
+      sessionStorage.setItem(
+        "gv_install_state_ts",
+        String(Date.now()),
+      );
+
       window.location.assign(url);
     } catch (e: any) {
       const message =
