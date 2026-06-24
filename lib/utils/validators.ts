@@ -16,11 +16,14 @@ export function isValidGithubUrl(url: string): boolean {
 /**
  * Validates that a git scope/path contains only safe characters.
  * Shell metacharacters (; | $ ` \ ' " ( ) { } < > & #) are rejected.
+ * Also rejects path traversal sequences (..) to prevent directory escape.
  */
 export function isValidGitScope(value: string): boolean {
   if (!value || typeof value !== "string") return false;
+  if (!/^[a-zA-Z0-9_./-]+$/.test(value)) return false;
+  // Reject path traversal sequences to prevent escaping the repo root
   if (value.includes('..')) return false;
-  return /^[a-zA-Z0-9_./-]+$/.test(value);
+  return true;
 }
 
 /**
