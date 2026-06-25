@@ -86,7 +86,9 @@ export default function WebhookInspectorPage() {
             setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, payload: data.events[0].payload } : e)));
           }
         }
-      } catch {}
+      } catch {
+        toast.error("Failed to load webhook payload");
+      }
     }
   };
 
