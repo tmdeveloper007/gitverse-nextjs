@@ -4,6 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/middleware";
+import { repositoryService } from "@/lib/services/repositoryService";
 
 export const runtime = "nodejs";
 
@@ -23,12 +25,31 @@ interface SnapshotQueryResponse {
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+
     const body: SnapshotRequest = await request.json();
 
     if (!body.repositoryId || !body.snapshot) {
       return NextResponse.json(
         { error: "Missing required fields: repositoryId, snapshot" },
         { status: 400 }
+      );
+    }
+
+    const repositoryId = parseInt(body.repositoryId, 10);
+    if (isNaN(repositoryId)) {
+      return NextResponse.json(
+        { error: "Invalid repositoryId" },
+        { status: 400 }
+      );
+    }
+
+    // Verify user has access to the repository
+    const repository = await repositoryService.getRepository(repositoryId, user.userId);
+    if (!repository) {
+      return NextResponse.json(
+        { error: "Repository not found or access denied" },
+        { status: 404 }
       );
     }
 
@@ -66,24 +87,43 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+
     const searchParams = request.nextUrl.searchParams;
-    const repositoryId = searchParams.get("repositoryId");
+    const repositoryIdParam = searchParams.get("repositoryId");
     const days = parseInt(searchParams.get("days") || "30", 10);
     const limit = parseInt(searchParams.get("limit") || "10", 10);
 
-    if (!repositoryId) {
+    if (!repositoryIdParam) {
       return NextResponse.json(
         { error: "Missing required query parameter: repositoryId" },
         { status: 400 }
       );
     }
 
+    const repositoryId = parseInt(repositoryIdParam, 10);
+    if (isNaN(repositoryId)) {
+      return NextResponse.json(
+        { error: "Invalid repositoryId" },
+        { status: 400 }
+      );
+    }
+
+    // Verify user has access to the repository
+    const repository = await repositoryService.getRepository(repositoryId, user.userId);
+    if (!repository) {
+      return NextResponse.json(
+        { error: "Repository not found or access denied" },
+        { status: 404 }
+      );
+    }
+
     // In a real implementation, query database for snapshots
     // For now, returning mock data
-    const mockSnapshots = generateMockSnapshots(repositoryId, days, limit);
+    const mockSnapshots = generateMockSnapshots(repositoryIdParam, days, limit);
 
     const response: SnapshotQueryResponse = {
-      repositoryId,
+      repositoryId: repositoryIdParam,
       snapshots: mockSnapshots,
       totalSnapshots: mockSnapshots.length,
     };
@@ -106,17 +146,36 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+
     const searchParams = request.nextUrl.searchParams;
-    const repositoryId = searchParams.get("repositoryId");
+    const repositoryIdParam = searchParams.get("repositoryId");
     const olderThanDays = parseInt(
       searchParams.get("olderThanDays") || "365",
       10
     );
 
-    if (!repositoryId) {
+    if (!repositoryIdParam) {
       return NextResponse.json(
         { error: "Missing required query parameter: repositoryId" },
         { status: 400 }
+      );
+    }
+
+    const repositoryId = parseInt(repositoryIdParam, 10);
+    if (isNaN(repositoryId)) {
+      return NextResponse.json(
+        { error: "Invalid repositoryId" },
+        { status: 400 }
+      );
+    }
+
+    // Verify user has access to the repository
+    const repository = await repositoryService.getRepository(repositoryId, user.userId);
+    if (!repository) {
+      return NextResponse.json(
+        { error: "Repository not found or access denied" },
+        { status: 404 }
       );
     }
 
@@ -126,7 +185,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: `Deleted snapshots older than ${olderThanDays} days for repository ${repositoryId}`,
+        message: `Deleted snapshots older than ${olderThanDays} days for repository ${repositoryIdParam}`,
         deletedCount: Math.floor(Math.random() * 10),
       },
       { status: 200 }
