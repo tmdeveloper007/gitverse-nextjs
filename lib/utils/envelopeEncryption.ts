@@ -106,7 +106,9 @@ export async function decryptToken(ciphertext: string): Promise<string> {
       if (key.length === DEK_BYTE_LENGTH) {
         try {
           return aesDecrypt(ciphertext, key);
-        } catch {}
+        } catch (err) {
+          // Silent fallback — decryption with this key also failed, continue to outer throw
+        }
       }
     }
     throw new Error("Failed to decrypt token with all available keys");
