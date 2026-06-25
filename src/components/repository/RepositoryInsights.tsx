@@ -8,6 +8,11 @@ import RepositoryEvolutionTimeline from "./RepositoryEvolutionTimeline";
 import ContributorIssueRecommendations from "./ContributorIssueRecommendations";
 import DependencyVulnerabilityScanner from "./DependencyVulnerabilityScanner";
 import CodeComplexityAnalyzer from "./CodeComplexityAnalyzer";
+import ContributorOnboardingChatbot from "./ContributorOnboardingChatbot";
+import RepositoryHealthDashboard from "./RepositoryHealthDashboard";
+import ArchitectureChangeComparison from "./ArchitectureChangeComparison";
+import DocumentationGenerator from "./DocumentationGenerator";
+import PullRequestReviewAssistant from "./PullRequestReviewAssistant";
 import { useState } from 'react'
 import { toast } from '@/hooks/use-toast'
 import axios from 'axios'
@@ -273,6 +278,21 @@ export function RepositoryInsights({
 
       {/* Dependency Vulnerability Scanner */}
       <DependencyVulnerabilityScanner />
+
+      {/* AI Contributor Onboarding Chatbot */}
+      <ContributorOnboardingChatbot />
+
+      {/* Smart Repository Health Dashboard */}
+      <RepositoryHealthDashboard />
+
+      {/* Repository Architecture Change Comparison */}
+      <ArchitectureChangeComparison />
+
+      {/* AI-Based Documentation Generator */}
+      <DocumentationGenerator />
+
+      {/* AI-Powered Pull Request Review Assistant */}
+      <PullRequestReviewAssistant />
 
     </div>
   )
