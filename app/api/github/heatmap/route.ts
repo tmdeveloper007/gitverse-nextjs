@@ -1,4 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/middleware";
+import { getGithubAccessToken } from "@/lib/services/githubAuthService";
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from "@/lib/middleware/rateLimit";
+import { apiError } from "@/lib/api-error";
 
 const GITHUB_GRAPHQL = "https://api.github.com/graphql";
 
@@ -7,12 +15,27 @@ export async function GET(req: NextRequest) {
   const username = searchParams.get("username");
 
   if (!username) {
-    return NextResponse.json({ error: "username is required" }, { status: 400 });
+    return apiError("username is required", 400);
   }
 
-  const token = process.env.GITHUB_TOKEN;
+  const user = await requireAuth(req);
+
+  const rateLimitCheck = await checkRateLimit(
+    String(user.userId),
+    RATE_LIMITS.API_GLOBAL
+  );
+  if (!rateLimitCheck.allowed) {
+    return rateLimitResponse(rateLimitCheck);
+  }
+
+  // Prefer the user\'s GitHub token; fall back to the system token for public data.
+  const userToken = await getGithubAccessToken(user.userId);
+  const token = userToken || process.env.GITHUB_TOKEN;
   if (!token) {
-    return NextResponse.json({ error: "GitHub token not configured" }, { status: 500 });
+    return NextResponse.json(
+      { error: "GitHub token not configured" },
+      { status: 500 }
+    );
   }
 
   const query = `
