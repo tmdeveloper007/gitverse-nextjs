@@ -164,11 +164,26 @@ export class RepositoryService {
           ? await this.tryReadmeFromRepoPath(scopedPath)
           : null) ?? (await this.tryReadmeFromRepoPath(tempDir));
 
+      // Guard against unbounded README size to prevent memory spikes
+      const MAX_README_SIZE = 500 * 1024; // 500 KB
+      let readmeText = readme?.text ?? "doesnt exist";
+      let readmeTruncated = false;
+      if (readmeText.length > MAX_README_SIZE) {
+        readmeText = readmeText.substring(0, MAX_README_SIZE);
+        readmeTruncated = true;
+        console.warn(
+          `[fetchAndStoreReadme] README for repo ${repositoryId} truncated from ` +
+            `${(readme?.text?.length ?? 0) / 1024}KB to ${MAX_README_SIZE / 1024}KB`
+        );
+      }
+
       const updated = await prisma.repository.update({
         where: { id: repositoryId },
         data: {
           readmePath: readme?.path ?? "README.md",
-          readmeText: readme?.text ?? "doesnt exist",
+          readmeText: readmeTruncated
+            ? readmeText + "\n\n[README truncated - exceeded 500KB limit]"
+            : readmeText,
           readmeFetchedAt: new Date(),
         },
       });
