@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "./logger";
 import { verifyTokenWithUserValidation } from "./auth";
 import { getNextAuthSecret } from "./config/env";
 import type { JWTPayload } from "./auth";
@@ -330,6 +331,60 @@ export function getPrismaErrorResponse(error: unknown): NextResponse | null {
   }
 
   return null;
+}
+
+export type RouteHandler = (
+  request: NextRequest,
+  context?: any
+) => Promise<NextResponse> | NextResponse | Promise<Response> | Response;
+
+/**
+ * Wraps an API route handler to log method, path, status, and duration.
+ * - Logs: method, path, status, durationMs
+ * - On errors: logs stack/causes via sanitizeError (no secrets)
+ * - Toggleable via LOG_API_REQUESTS env var (default: true in non-production)
+ */
+export function withRequestLogging(handler: RouteHandler): RouteHandler {
+  return async (request: NextRequest, context?: any) => {
+    const isEnabled =
+      process.env.LOG_API_REQUESTS === undefined
+        ? process.env.NODE_ENV !== "production"
+        : process.env.LOG_API_REQUESTS === "true";
+
+    if (!isEnabled) {
+      return handler(request, context);
+    }
+
+    const start = Date.now();
+    const method = request.method;
+    const path = request.nextUrl.pathname;
+
+    try {
+      const response = await handler(request, context);
+      const durationMs = Date.now() - start;
+      const status = response instanceof NextResponse
+        ? response.status
+        : (response as Response).status;
+
+      logger.info({ method, path, status, durationMs }, "API request");
+
+      return response;
+    } catch (error: unknown) {
+      const durationMs = Date.now() - start;
+
+      logger.error(
+        {
+          method,
+          path,
+          durationMs,
+          error: sanitizeError(error),
+        },
+        "API request failed"
+      );
+
+      throw error;
+    }
+  };
 }
 
 // This tells Next.js WHICH pages/routes to protect
