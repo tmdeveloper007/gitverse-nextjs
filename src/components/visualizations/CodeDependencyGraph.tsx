@@ -130,7 +130,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     }
 
     return { nodeChurnMap: map, maxChurn: max };
-  }, [repository?.commits, graphData]);
+  }, [repository?.commits, graphData.nodes]);
 
   const exportGraph = async (format: "png" | "svg") => {
     if (!exportRef.current) return;
