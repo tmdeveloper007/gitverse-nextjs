@@ -53,6 +53,12 @@ import { useModuleBookmarks } from "@/hooks/useModuleBookmarks";
 import { IssueData } from "@/types/firstPRSimulator";
 import { RepositoryAnalysisData } from "@/types/contributionPath";
 import ReactMarkdown from "react-markdown";
+
+/**
+ * Maximum size (in characters) of README content before truncation.
+ * Large READMEs can cause slow rendering or memory spikes.
+ */
+const MAX_README_SIZE = 512_000; // ~500 KB of markdown text
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -442,6 +448,10 @@ export const RepositoryOverview = ({
   }));
 
   const hasUsableReadme = Boolean(readmeText && readmeText !== "doesnt exist");
+  const isReadmeTooLarge = hasUsableReadme && readmeText!.length > MAX_README_SIZE;
+  const displayReadmeText = isReadmeTooLarge
+    ? readmeText!.slice(0, MAX_README_SIZE)
+    : readmeText;
   const isAnalyzing =
     repositoryData?.status === "pending" ||
     repositoryData?.status === "analyzing";
@@ -1122,9 +1132,32 @@ export const RepositoryOverview = ({
                     ),
                   }}
                 >
-                  {readmeText || ""}
+                  {displayReadmeText || ""}
                 </ReactMarkdown>
                 <div className="clear-both" />
+                {isReadmeTooLarge && (
+                  <div className="mt-3 p-3 bg-yellow-900/20 border border-yellow-700/40 rounded-lg text-sm">
+                    <p className="text-yellow-400 font-medium mb-1">
+                      README truncated — too large to display fully
+                    </p>
+                    <p className="text-muted-foreground text-xs mb-2">
+                      This README is {readmeText!.length.toLocaleString()} characters.
+                      Only the first {MAX_README_SIZE.toLocaleString()} are shown.
+                    </p>
+                    {githubBlobBase && (
+                      <a
+                        href={githubBlobBase + encodeURIComponent(
+                          repositoryData?.readmePath || "README.md"
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline text-xs hover:opacity-80"
+                      >
+                        View raw README on GitHub
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">
