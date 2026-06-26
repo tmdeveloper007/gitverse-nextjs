@@ -10,6 +10,7 @@ import {
   requireAuth,
   sanitizeError,
   getPrismaErrorResponse,
+  withRequestLogging,
 } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { analysisJobService } from "@/lib/services/analysisJobService";
@@ -68,7 +69,7 @@ function normalizeGitHubRepoUrl(input: string): string | null {
   return null;
 }
 
-export async function POST(request: NextRequest) {
+async function handleRepositoryPost(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
@@ -220,7 +221,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export const POST = withRequestLogging(handleRepositoryPost);
+
+async function handleRepositoryGet(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
@@ -254,3 +257,5 @@ export async function GET(request: NextRequest) {
     return apiError("Failed to list repositories", 500);
   }
 }
+
+export const GET = withRequestLogging(handleRepositoryGet);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isHttpError, requireAuth, sanitizeError } from "@/lib/middleware";
+import { isHttpError, requireAuth, sanitizeError, withRequestLogging } from "@/lib/middleware";
 import { getGeminiService } from "@/lib/services/geminiService";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { checkAiRateLimit, logAiRequest } from "@/lib/utils/ipRateLimit";
@@ -45,7 +45,7 @@ function parseKnowledgeArray(value: any): string[] {
   return [];
 }
 
-export async function POST(request: NextRequest) {
+async function handleChatPost(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
@@ -351,3 +351,5 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
     );
   }
 }
+
+export const POST = withRequestLogging(handleChatPost);
