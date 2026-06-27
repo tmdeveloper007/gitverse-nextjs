@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth , sanitizeError } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
 import { toJsonSafe } from "@/lib/utils/jsonSafe";
+import { requireGitHubAppInstallation } from "@/lib/utils/githubAppCheck";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,10 @@ function clampInt(
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+
+    // Check if user has GitHub App installed
+    const notInstalledResponse = await requireGitHubAppInstallation(user.userId);
+    if (notInstalledResponse) return notInstalledResponse;
 
     const url = new URL(request.url);
     const repoFullName = (url.searchParams.get("repoFullName") || "").trim();
