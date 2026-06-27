@@ -19,6 +19,8 @@ export function isValidGithubUrl(url: string): boolean {
  */
 export function isValidGitScope(value: string): boolean {
   if (!value || typeof value !== "string") return false;
+  // Reject path traversal sequences
+  if (value.includes("..")) return false;
   return /^[a-zA-Z0-9_./-]+$/.test(value);
 }
 
