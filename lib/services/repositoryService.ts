@@ -642,22 +642,6 @@ export class RepositoryService {
         });
       });
 
-      // Record the analyzed commit SHA for stale-detection.
-      // Fetched after the transaction so it reflects the newly inserted commits.
-      const headCommit = await prisma.commit.findFirst({
-        where: { repositoryId, branch: defaultBranch },
-        orderBy: { committedAt: "desc" },
-        select: { hash: true },
-      });
-      if (headCommit?.hash) {
-        await prisma.repository.update({
-          where: { id: repositoryId },
-          data: { analyzedCommitSha: headCommit.hash },
-        }).catch(() => {
-          // Non-critical: stale-detection metadata should not break analysis.
-        });
-      }
-
       // Save repository knowledge if found
       try {
         await repositoryKnowledgeService.upsertKnowledge(repositoryId, parsedKnowledge);
@@ -910,27 +894,7 @@ export class RepositoryService {
       },
     });
 
-    if (!repository) return null;
-
-    // Determine whether the analysis is stale:
-    // If we have an analyzedCommitSha and it differs from the latest local commit
-    // on the default branch, new commits have been pushed since the last analysis.
-    let isStale = false;
-    if (repository.analyzedCommitSha && repository.defaultBranch) {
-      const latestLocalCommit = await prisma.commit.findFirst({
-        where: {
-          repositoryId: repository.id,
-          branch: repository.defaultBranch,
-        },
-        orderBy: { committedAt: "desc" },
-        select: { hash: true },
-      });
-      isStale =
-        !!latestLocalCommit &&
-        latestLocalCommit.hash !== repository.analyzedCommitSha;
-    }
-
-    return { ...repository, isStale };
+    return repository;
   }
 
   async listRepositories(userId: number, limit: number = 10, cursor?: number) {
