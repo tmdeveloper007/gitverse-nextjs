@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyGitHubWebhookSignature } from "@/lib/utils/githubWebhook";
+import { sanitizeError } from "@/lib/middleware";
 import { GithubWebhookVerifier } from "@/lib/services/githubWebhookVerifier";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
@@ -244,7 +245,7 @@ export async function POST(request: NextRequest) {
       { status: 202 }
     );
   } catch (error) {
-    console.error("Error queueing webhook event:", error);
+    console.error("Error queueing webhook event:", sanitizeError(error));
     if (idempotencyKey) {
       await releaseIdempotency(idempotencyKey);
     }
