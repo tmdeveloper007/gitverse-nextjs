@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAdmin } from "@/lib/middleware";
+import { requireAdmin, sanitizeError } from "@/lib/middleware";
 import { webhookQueue } from "@/lib/queue/webhookQueue";
 
 export async function POST(request: NextRequest) {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, replayed: ids.length });
   } catch (error: any) {
-    console.error("Bulk replay error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Bulk replay error:", sanitizeError(error));
+    return NextResponse.json({ error: "Failed to replay failed webhook events" }, { status: 500 });
   }
 }
