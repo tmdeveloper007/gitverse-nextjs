@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, sanitizeError } from "@/lib/middleware";
+import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
 
 const GITHUB_GRAPHQL = "https://api.github.com/graphql";
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const username = searchParams.get("username");
+  try {
+    const user = await requireAuth(req);
 
-  if (!username) {
-    return NextResponse.json({ error: "username is required" }, { status: 400 });
-  }
+    const rl = await checkRateLimit(String(user.userId), RATE_LIMITS.GITHUB_HEATMAP);
+    if (!rl.allowed) return rateLimitResponse(rl);
 
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    return NextResponse.json({ error: "GitHub token not configured" }, { status: 500 });
-  }
+    const { searchParams } = new URL(req.url);
+    const username = searchParams.get("username");
 
-  const query = `
+    if (!username) {
+      return NextResponse.json({ error: "username is required" }, { status: 400 });
+    }
+
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) {
+      return NextResponse.json({ error: "GitHub token not configured" }, { status: 500 });
+    }
+
+    const query = `
     query ($login: String!) {
       user(login: $login) {
         contributionsCollection {
@@ -34,7 +42,6 @@ export async function GET(req: NextRequest) {
     }
   `;
 
-  try {
     const response = await fetch(GITHUB_GRAPHQL, {
       method: "POST",
       headers: {
@@ -63,7 +70,8 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(calendar);
-  } catch (err) {
+  } catch (err: any) {
+    console.error("Heatmap fetch error:", sanitizeError(err));
     return NextResponse.json({ error: "Failed to fetch heatmap" }, { status: 500 });
   }
 }
