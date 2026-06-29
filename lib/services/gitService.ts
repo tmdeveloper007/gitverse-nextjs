@@ -14,6 +14,7 @@ const GIT_LOG_TIMEOUT_MS = 5 * 60 * 1000;
 const FORCE_KILL_DELAY_MS = 5_000;
 const MAX_COMMITS_DEFAULT = 1000;
 const MAX_CONTRIBUTOR_COMMITS = 3000;
+const MAX_BRANCHES_TO_ANALYZE = 500;
 const MAX_FILE_BYTES_TO_READ_FOR_LINECOUNT = 256 * 1024; // 256KB
 
 function countLinesReadStream(filePath: string): Promise<number> {
@@ -435,6 +436,7 @@ export class GitService {
       const refEntries: { name: string; fullName: string; date: string }[] = [];
 
       for (const line of lines) {
+        if (refEntries.length >= MAX_BRANCHES_TO_ANALYZE) break;
         const [fullName, date] = line.split("|");
 
         // Skip origin/HEAD
