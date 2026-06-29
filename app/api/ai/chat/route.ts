@@ -208,13 +208,18 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
 
         const selectionResult = await gemini.chatRaw(fileSelectionPrompt);
         let selectedPaths: string[] = [];
+        const cleanedJson = selectionResult.text
+          .replace(/```json|```/g, "")
+          .trim();
         try {
-          const cleanedJson = selectionResult.text
-            .replace(/```json|```/g, "")
-            .trim();
           selectedPaths = JSON.parse(cleanedJson);
-        } catch {
-          selectedPaths = candidatePaths.slice(0, 2);
+          if (!Array.isArray(selectedPaths)) {
+            throw new Error("File selection did not return a JSON array");
+          }
+        } catch (parseErr) {
+          throw new Error(
+            `AI file selection returned unparseable response: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Expected a JSON array of file paths.`,
+          );
         }
 
         // Fetch actual file contents
