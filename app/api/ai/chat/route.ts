@@ -208,13 +208,22 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
 
         const selectionResult = await gemini.chatRaw(fileSelectionPrompt);
         let selectedPaths: string[] = [];
+        let parsedSelectionError: Error | null = null;
         try {
           const cleanedJson = selectionResult.text
             .replace(/```json|```/g, "")
             .trim();
           selectedPaths = JSON.parse(cleanedJson);
-        } catch {
-          selectedPaths = candidatePaths.slice(0, 2);
+        } catch (err) {
+          parsedSelectionError = err instanceof Error ? err : new Error(String(err));
+        }
+
+        // Throw a descriptive error instead of silently falling back
+        if (parsedSelectionError || !Array.isArray(selectedPaths)) {
+          throw new Error(
+            `AI file selection returned unparseable response: ${parsedSelectionError?.message || "expected JSON array"}. ` +
+            "The AI response may be malformed or in an unexpected format."
+          );
         }
 
         // Fetch actual file contents
