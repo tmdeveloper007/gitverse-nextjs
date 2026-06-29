@@ -216,6 +216,25 @@ export async function POST(request: NextRequest) {
     if (isHttpError(error)) {
       return apiError(error.message, error.status);
     }
+
+    // Handle unique constraint violation gracefully - suggest using existing repo
+    if (error?.code === "P2002") {
+      const existing = await repositoryService.getRepositoryByUrl(
+        normalizedUrl,
+        user.userId
+      );
+      if (existing) {
+        return apiError(
+          "This repository is already connected to your account. Visit it from your repositories list.",
+          409
+        );
+      }
+      return apiError(
+        "A repository with this URL or name already exists in your account.",
+        409
+      );
+    }
+
     return apiError("Failed to create repository", 500);
   }
 }

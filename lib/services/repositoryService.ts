@@ -933,14 +933,17 @@ export class RepositoryService {
    * Delete a repository and all its data
    */
   async deleteRepository(id: number, userId: number) {
-    const result = await prisma.repository.deleteMany({
+    // First check if the repository exists for this user
+    const existing = await prisma.repository.findFirst({
       where: { id, userId },
+      select: { id: true },
     });
 
-    if (result.count === 0) {
+    if (!existing) {
       throw new Error("Repository not found");
     }
 
+    // Delete related data first in a transaction, then delete the repository itself
     await prisma.$transaction([
       // Explicitly delete file changes linked to commits of this repository
       prisma.fileChange.deleteMany({
@@ -954,19 +957,26 @@ export class RepositoryService {
       prisma.analysisJob.deleteMany({
         where: { repositoryId: id },
       }),
-      // Repository deletion handles the rest via Cascade
+      // Explicitly delete the repository (cascades to related records via schema)
       prisma.repository.delete({
         where: { id },
       }),
     ]);
-    await prisma.repository.delete({
-      where: { id },
-    });
 
     // Invalidate cached stats — repository no longer exists.
     ttlCache.deleteByPrefix(`repo-stats:${id}:`);
 
     return { success: true };
+  }
+
+  /**
+   * Get repository by URL for a user (used for duplicate detection)
+   */
+  async getRepositoryByUrl(url: string, userId: number) {
+    return prisma.repository.findFirst({
+      where: { url, userId },
+      select: { id: true, name: true },
+    });
   }
   //Explicitly set the status of a repository
   async setRepositoryStatus(
