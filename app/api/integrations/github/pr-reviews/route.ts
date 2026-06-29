@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth , sanitizeError } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
 import { toJsonSafe } from "@/lib/utils/jsonSafe";
+import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,9 @@ function clampInt(
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+
+    const rl = await checkRateLimit(String(user.userId), RATE_LIMITS.GITHUB_REPOS);
+    if (!rl.allowed) return rateLimitResponse(rl);
 
     const url = new URL(request.url);
     const repoFullName = (url.searchParams.get("repoFullName") || "").trim();

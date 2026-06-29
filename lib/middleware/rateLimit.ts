@@ -45,6 +45,7 @@ export const RATE_LIMITS = {
   GITHUB_IMPORT: { namespace: "github:import", maxRequests: 10, windowMs: 3_600_000 },
   GITHUB_CONNECT: { namespace: "github:connect", maxRequests: 5, windowMs: 60_000 },
   GITHUB_WEBHOOK: { namespace: "github:webhook", maxRequests: 100, windowMs: 60_000 },
+  GITHUB_REPOS: { namespace: "github:repos", maxRequests: 100, windowMs: 60_000 },
   INCIDENT_WEBHOOK: { namespace: "incident:webhook", maxRequests: 50, windowMs: 60_000 },
   ADMIN_DLQ: { namespace: "admin:dlq", maxRequests: 30, windowMs: 60_000 },
   ADMIN_DLQ_REPLAY: { namespace: "admin:dlq:replay", maxRequests: 20, windowMs: 60_000 },
@@ -233,3 +234,4 @@ export function addRateLimitHeaders(
   response.headers.set("X-RateLimit-Reset", String(Math.ceil(result.resetAt / 1000)));
   return response;
 }
+
