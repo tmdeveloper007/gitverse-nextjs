@@ -4,6 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/middleware";
+import { repositoryService } from "@/lib/services/repositoryService";
 
 export const runtime = "nodejs";
 
@@ -18,12 +20,31 @@ interface ActivityAnalysisRequest {
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+
     const body: ActivityAnalysisRequest = await request.json();
 
     if (!body.repositoryId) {
       return NextResponse.json(
         { success: false, message: "Missing required field: repositoryId" },
         { status: 400 }
+      );
+    }
+
+    const repositoryId = parseInt(body.repositoryId, 10);
+    if (isNaN(repositoryId)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid repositoryId" },
+        { status: 400 }
+      );
+    }
+
+    // Verify user has access to the repository
+    const repository = await repositoryService.getRepository(repositoryId, user.userId);
+    if (!repository) {
+      return NextResponse.json(
+        { success: false, message: "Repository not found or access denied" },
+        { status: 404 }
       );
     }
 
@@ -59,22 +80,41 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+
     const searchParams = request.nextUrl.searchParams;
-    const repositoryId = searchParams.get("repositoryId");
+    const repositoryIdParam = searchParams.get("repositoryId");
     const timeWindow = (searchParams.get("timeWindow") || "month") as
       | "week"
       | "twoWeeks"
       | "month"
       | "quarter";
 
-    if (!repositoryId) {
+    if (!repositoryIdParam) {
       return NextResponse.json(
         { success: false, message: "Missing required query parameter: repositoryId" },
         { status: 400 }
       );
     }
 
-    const analysis = generateMockAnalysis(repositoryId, timeWindow, 10);
+    const repositoryId = parseInt(repositoryIdParam, 10);
+    if (isNaN(repositoryId)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid repositoryId" },
+        { status: 400 }
+      );
+    }
+
+    // Verify user has access to the repository
+    const repository = await repositoryService.getRepository(repositoryId, user.userId);
+    if (!repository) {
+      return NextResponse.json(
+        { success: false, message: "Repository not found or access denied" },
+        { status: 404 }
+      );
+    }
+
+    const analysis = generateMockAnalysis(repositoryIdParam, timeWindow, 10);
 
     return NextResponse.json(
       {
