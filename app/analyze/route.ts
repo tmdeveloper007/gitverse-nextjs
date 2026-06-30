@@ -7,6 +7,7 @@ import { analysisJobService } from "@/lib/services/analysisJobService";
 import { sanitizeError } from "@/lib/middleware";
 import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
 import { normalizeTargetDirectory } from "@/lib/utils/repositoryUtils";
+import { validateSafeUrl } from "@/lib/utils/ssrfValidator";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
 
 function normalizeKnownRepoHttpUrl(input: string): string | null {
@@ -108,6 +109,14 @@ export async function POST(request: NextRequest) {
               "Invalid repository URL. Use a full repository URL like https://github.com/owner/repo",
           },
           { status: 400 },
+        );
+      }
+
+      const urlSafe = await validateSafeUrl(normalizedUrl);
+      if (!urlSafe) {
+        return NextResponse.json(
+          { error: "Repository URL resolves to a private or disallowed IP address" },
+          { status: 400 }
         );
       }
 
