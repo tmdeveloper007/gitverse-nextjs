@@ -31,6 +31,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (typeof email !== "string" || typeof name !== "string") {
+      return NextResponse.json(
+        { error: "Email and name must be strings" },
+        { status: 400 },
+      );
+    }
+
     normalizedEmail = email.toLowerCase();
 
     const attemptCount = await countAttempts(ip, "SIGNUP", WINDOW_MS);

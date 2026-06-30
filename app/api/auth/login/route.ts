@@ -30,6 +30,10 @@ export async function POST(request: NextRequest) {
       return apiError(400, "Email and password are required");
     }
 
+    if (typeof email !== "string") {
+      return apiError(400, "Email must be a string");
+    }
+
     const normalizedEmail = email.toLowerCase();
 
     if (await isRateLimited(ip, "LOGIN", MAX_ATTEMPTS, WINDOW_MS)) {
