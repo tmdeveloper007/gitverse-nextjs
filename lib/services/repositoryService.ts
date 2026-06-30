@@ -186,7 +186,10 @@ export class RepositoryService {
   }
 
   /**
-   * Create a new repository record or return existing one
+   * Create a new repository record or return existing one.
+   * Also restores any orphaned GitHubRepo record for the same repoFullName
+   * so that re-adding a previously deleted repository does not hit a
+   * unique-constraint P2002 error from a stale GitHubRepo entry.
    */
   async createRepository(input: AnalyzeRepositoryInput) {
     // Check if repository with same URL already exists for this user
@@ -213,6 +216,18 @@ export class RepositoryService {
       throw new Error("Repository with this name already exists");
     }
 
+    // Derive repoFullName from URL (e.g. https://github.com/owner/repo -> owner/repo)
+    let repoFullName: string | undefined;
+    try {
+      const urlObj = new URL(input.url);
+      const segments = urlObj.pathname.split("/").filter(Boolean);
+      if (segments.length >= 2) {
+        repoFullName = `${segments[0]}/${segments[1]}`;
+      }
+    } catch {
+      // Non-standard URL — skip GitHubRepo restoration
+    }
+
     const repository = await prisma.repository.create({
       data: {
         name: input.name,
@@ -224,6 +239,21 @@ export class RepositoryService {
         isPrivate: input.isPrivate ?? false,
       },
     });
+
+    // Restore orphaned GitHubRepo record so re-enabling via the GitHub App
+    // integration does not fail with a unique-constraint P2002 error.
+    if (repoFullName) {
+      await prisma.gitHubRepo.updateMany({
+        where: {
+          userId: input.userId,
+          repoFullName,
+          enabled: false,
+        },
+        data: { enabled: true },
+      }).catch(() => {
+        // Best-effort: non-fatal if the record does not exist or is already enabled.
+      });
+    }
 
     return repository;
   }
