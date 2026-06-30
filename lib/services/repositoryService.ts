@@ -186,46 +186,51 @@ export class RepositoryService {
   }
 
   /**
-   * Create a new repository record or return existing one
+   * Create a new repository record.  If the same (userId, url, targetDirectory)
+   * record already exists (e.g. after a prior delete), re-fetch and return it so
+   * callers can proceed without hitting a P2002 unique-constraint violation.
    */
   async createRepository(input: AnalyzeRepositoryInput) {
-    // Check if repository with same URL already exists for this user
-    const existingRepository = await prisma.repository.findFirst({
-      where: {
-        url: input.url,
-        userId: input.userId,
-        targetDirectory: input.targetDirectory ?? null,
-      },
-    });
-
-    if (existingRepository) {
-      return existingRepository;
-    }
-
-    const existingRepositoryName = await prisma.repository.findFirst({
+    // Guard against name collisions with a different URL.
+    const existingByName = await prisma.repository.findFirst({
       where: {
         name: input.name,
         userId: input.userId,
+        url: { not: input.url },
       },
     });
 
-    if (existingRepositoryName) {
+    if (existingByName) {
       throw new Error("Repository with this name already exists");
     }
 
-    const repository = await prisma.repository.create({
-      data: {
-        name: input.name,
-        url: input.url,
-        description: input.description,
-        targetDirectory: input.targetDirectory ?? null,
-        userId: input.userId,
-        status: "pending",
-        isPrivate: input.isPrivate ?? false,
-      },
-    });
-
-    return repository;
+    try {
+      return await prisma.repository.create({
+        data: {
+          name: input.name,
+          url: input.url,
+          description: input.description,
+          targetDirectory: input.targetDirectory ?? null,
+          userId: input.userId,
+          status: "pending",
+          isPrivate: input.isPrivate ?? false,
+        },
+      });
+    } catch (error: any) {
+      // P2002: unique constraint violation — the same (url, userId) record
+      // already exists.  Return it so the caller can proceed.
+      if (error?.code === "P2002") {
+        const existing = await prisma.repository.findFirst({
+          where: {
+            url: input.url,
+            userId: input.userId,
+            targetDirectory: input.targetDirectory ?? null,
+          },
+        });
+        if (existing) return existing;
+      }
+      throw error;
+    }
   }
 
   /**
