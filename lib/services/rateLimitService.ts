@@ -18,14 +18,53 @@ function getRetentionThreshold(): Date {
   return new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Returns true if the IP address belongs to a trusted proxy range
+ * (loopback, private, or link-local networks). Only these addresses are
+ * trusted when they appear in x-forwarded-for.
+ */
+function isTrustedProxyIp(ip: string): boolean {
+  // Loopback: 127.0.0.0/8
+  if (/^127\./.test(ip)) return true;
+  // IPv6 loopback
+  if (ip === "::1") return true;
+  // IPv6 link-local
+  if (ip.toLowerCase().startsWith("fe80:")) return true;
+
+  // IPv4 private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+  if (/^10\./.test(ip)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)) return true;
+  if (/^192\.168\./.test(ip)) return true;
+
+  return false;
+}
+
 export function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
-    const ip = forwarded.split(",")[0]?.trim();
-    if (ip && ip !== "unknown") return ip;
+    // x-forwarded-for is a comma-separated chain: client, proxy1, proxy2, ...
+    // Only trust the leftmost IP if it comes from a known proxy.
+    const ips = forwarded.split(",").map((s) => s.trim()).filter(Boolean);
+    const firstIp = ips[0];
+
+    if (firstIp && firstIp !== "unknown" && isTrustedProxyIp(firstIp)) {
+      // Trust the full chain — return the rightmost non-trusted IP (actual client).
+      // If the entire chain consists of trusted proxy IPs, fall back to request.ip.
+      for (let i = ips.length - 1; i >= 0; i--) {
+        if (!isTrustedProxyIp(ips[i])) {
+          return ips[i];
+        }
+      }
+      // All IPs in chain are trusted proxies; fall through to request.ip.
+    }
   }
+
   const realIp = request.headers.get("x-real-ip");
-  if (realIp && realIp !== "unknown") return realIp;
+  if (realIp && realIp !== "unknown" && !isTrustedProxyIp(realIp)) {
+    // Only trust x-real-ip when it looks like a real client IP, not a spoofed one.
+    return realIp;
+  }
+
   return request.ip ?? "unknown";
 }
 
