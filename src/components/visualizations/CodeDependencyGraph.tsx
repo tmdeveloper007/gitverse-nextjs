@@ -54,10 +54,35 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const [announcement, setAnnouncement] = useState("");
   const [heatmapMode, setHeatmapMode] = useState(false);
 
+  // Filters and drilldown state must be declared before the useMemos that reference them.
+  const {
+    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters
+  } = useGraphFilters();
+
+  const {
+    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
+  } = useGraphDrilldown();
+
+  // Hoisted before nodeChurnMap to resolve the TypeScript TDZ error.
+  const completeGraph = useMemo(() => {
+    const analyzer = new GraphAnalyzer();
+    return analyzer.buildDependencyGraph(repository?.files || []);
+  }, [repository?.files]);
+
+  const graphData = useMemo(() => {
+    const filterService = new GraphFilteringService();
+    return filterService.applyFilters(completeGraph.nodes, completeGraph.links, {
+      expandedNodes,
+      hiddenDirectories: filters.hiddenDirectories,
+      hiddenFileTypes: filters.hiddenFileTypes,
+      visibleDomains: filters.visibleDomains
+    });
+  }, [completeGraph, expandedNodes, filters]);
+
   const { nodeChurnMap, maxChurn } = useMemo(() => {
     const map = new Map<string, number>();
     if (!repository?.commits) return { nodeChurnMap: map, maxChurn: 0 };
-    
+
     repository.commits.forEach((c: any) => {
       if (c.fileChanges) {
         c.fileChanges.forEach((fc: any) => {
@@ -79,7 +104,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
         }
         map.set(node.id, count);
       } else {
-         map.set(node.id, map.get(node.path) || 0);
+        map.set(node.id, map.get(node.path) || 0);
       }
     });
 
@@ -87,7 +112,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     for (const val of map.values()) {
       if (val > max) max = val;
     }
-    
+
     return { nodeChurnMap: map, maxChurn: max };
   }, [repository?.commits, graphData.nodes]);
 
@@ -108,29 +133,6 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       (selectedCommit.fileChanges || []).map((fc: any) => [fc.path, fc.changeType || fc.type])
     );
   }, [selectedCommit]);
-
-  const { 
-    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters 
-  } = useGraphFilters();
-
-  const {
-    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
-  } = useGraphDrilldown();
-  
-  const completeGraph = useMemo(() => {
-    const analyzer = new GraphAnalyzer();
-    return analyzer.buildDependencyGraph(repository?.files || []);
-  }, [repository?.files]);
-
-  const graphData = useMemo(() => {
-    const filterService = new GraphFilteringService();
-    return filterService.applyFilters(completeGraph.nodes, completeGraph.links, {
-      expandedNodes,
-      hiddenDirectories: filters.hiddenDirectories,
-      hiddenFileTypes: filters.hiddenFileTypes,
-      visibleDomains: filters.visibleDomains
-    });
-  }, [completeGraph, expandedNodes, filters]);
 
   const exportGraph = async (format: "png" | "svg") => {
     if (!exportRef.current) return;
