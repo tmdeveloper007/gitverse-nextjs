@@ -1,10 +1,11 @@
 import axios from "axios";
 import jwt from "jsonwebtoken";
+import { HttpError } from "@/lib/middleware";
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
   if (!value?.trim()) {
-    throw new Error(`${name} is required`);
+    throw new HttpError(503, `${name} environment variable is not configured`);
   }
   return value;
 }
