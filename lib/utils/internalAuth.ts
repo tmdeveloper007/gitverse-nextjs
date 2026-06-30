@@ -48,11 +48,14 @@ export function isAnalysisRunnerTokenValid(
   if (!secret) return false;
   if (!headerSecret) return false;
 
+  // Guard against length mismatch to prevent timing oracle via thrown RangeError
+  const headerBuf = Buffer.from(headerSecret);
+  const secretBuf = Buffer.from(secret);
+  if (headerBuf.length !== secretBuf.length) {
+    return false;
+  }
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(headerSecret),
-      Buffer.from(secret)
-    );
+    return crypto.timingSafeEqual(headerBuf, secretBuf);
   } catch {
     return false;
   }
