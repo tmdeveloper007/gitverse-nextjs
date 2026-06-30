@@ -64,7 +64,7 @@ export class ImpactAnalysisService {
       const graph = await this.graphService.buildGraph(tempDir);
 
       // 4. Find dependents
-      const affectedFiles = this.graphService.getDownstreamDependents(graph, changedFileNames);
+      const { dependents: affectedFiles } = this.graphService.getDownstreamDependents(graph, changedFileNames);
 
       // 5. Gather file contents for Gemini from the PR itself
       const changedFilesContent = [];

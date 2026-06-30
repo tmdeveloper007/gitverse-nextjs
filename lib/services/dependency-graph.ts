@@ -142,31 +142,47 @@ export class DependencyGraphService {
   /**
    * Finds all direct and indirect dependents of the given changed files.
    * Limits traversal depth to avoid overly broad blast radius.
+   *
+   * Returns { dependents, cyclicNodes } where cyclicNodes contains files that
+   * participate in circular import chains (a back-edge was detected).
    */
-  getDownstreamDependents(graph: DependencyGraph, changedFiles: string[], maxDepth: number = 3): string[] {
+  getDownstreamDependents(
+    graph: DependencyGraph,
+    changedFiles: string[],
+    maxDepth: number = 3
+  ): { dependents: string[]; cyclicNodes: Set<string> } {
     const affected = new Set<string>();
-    const queue: Array<{file: string, depth: number}> = changedFiles.map(f => ({file: f, depth: 0}));
+    const cyclicNodes = new Set<string>();
+    const path = new Set<string>(changedFiles);
+    const queue: Array<{ file: string; depth: number }> = changedFiles.map(f => ({ file: f, depth: 0 }));
 
     while (queue.length > 0) {
-      const {file, depth} = queue.shift()!;
-      if (depth >= maxDepth) continue;
+      const { file, depth } = queue.shift()!;
 
       const dependents = graph.get(file);
-      if (dependents) {
-        for (const dep of dependents) {
-          if (!affected.has(dep)) {
-            affected.add(dep);
-            queue.push({file: dep, depth: depth + 1});
-          }
+      if (!dependents) continue;
+
+      for (const dep of dependents) {
+        // Detect cycle: dep is already in the current path
+        if (path.has(dep)) {
+          cyclicNodes.add(dep);
+          continue; // Do not re-enqueue to prevent infinite loop
+        }
+
+        if (!affected.has(dep) && depth < maxDepth) {
+          affected.add(dep);
+          path.add(dep);
+          queue.push({ file: dep, depth: depth + 1 });
         }
       }
     }
 
-    // Remove the original changed files from the affected set if they loop back
+    // Remove the original changed files from the affected set
     for (const f of changedFiles) {
       affected.delete(f);
+      cyclicNodes.delete(f);
     }
 
-    return Array.from(affected);
+    return { dependents: Array.from(affected), cyclicNodes };
   }
 }

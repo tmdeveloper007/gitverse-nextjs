@@ -16,7 +16,10 @@ export class DependencyGraphAnalyzer {
       const graph = await graphService.buildGraph(repoUrl);
       
       for (const file of changedFiles) {
-        const dependents = graphService.getDownstreamDependents(graph, [file], 3);
+        const { dependents, cyclicNodes } = graphService.getDownstreamDependents(graph, [file], 3);
+        if (cyclicNodes.size > 0) {
+          console.warn(`DependencyGraphAnalyzer: Circular dependency detected for file: ${file}, cyclic nodes:`, Array.from(cyclicNodes));
+        }
         if (dependents.length > 0) {
           dependencyPaths[file] = dependents;
           dependents.forEach(dep => affectedSet.add(dep));
