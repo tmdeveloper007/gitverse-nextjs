@@ -1,9 +1,41 @@
 import { ImageResponse } from 'next/og'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'edge'
 
+// Simple in-memory rate limiter for Edge runtime (per-instance, non-persistent).
+// Protects against burst abuse. Production deployments should use a
+// Redis-backed or middleware-layer rate limiter for distributed protection.
+const OG_RATE_LIMIT = 30
+const OG_WINDOW_MS = 60_000
+const ogReqCounts = new Map<string, { count: number; resetAt: number }>()
+
+function checkOgRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = ogReqCounts.get(ip)
+  if (!entry || now > entry.resetAt) {
+    ogReqCounts.set(ip, { count: 1, resetAt: now + OG_WINDOW_MS })
+    return true
+  }
+  if (entry.count >= OG_RATE_LIMIT) {
+    return false
+  }
+  entry.count++
+  return true
+}
+
 export async function GET(request: NextRequest) {
+  // Rate limit per client IP
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    (request as any).ip ||
+    'unknown'
+
+  if (!checkOgRateLimit(ip)) {
+    return new Response('Too Many Requests', { status: 429 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
 
