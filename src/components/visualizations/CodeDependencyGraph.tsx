@@ -54,10 +54,11 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const [announcement, setAnnouncement] = useState("");
   const [heatmapMode, setHeatmapMode] = useState(false);
 
-  const { nodeChurnMap, maxChurn } = useMemo(() => {
+  // Build basic file change map from commits
+  const commitFileMap = useMemo(() => {
     const map = new Map<string, number>();
-    if (!repository?.commits) return { nodeChurnMap: map, maxChurn: 0 };
-    
+    if (!repository?.commits) return map;
+
     repository.commits.forEach((c: any) => {
       if (c.fileChanges) {
         c.fileChanges.forEach((fc: any) => {
@@ -68,6 +69,36 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
         });
       }
     });
+
+    return map;
+  }, [repository?.commits]);
+
+  const {
+    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters
+  } = useGraphFilters();
+
+  const {
+    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
+  } = useGraphDrilldown();
+
+  const completeGraph = useMemo(() => {
+    const analyzer = new GraphAnalyzer();
+    return analyzer.buildDependencyGraph(repository?.files || []);
+  }, [repository?.files]);
+
+  const graphData = useMemo(() => {
+    const filterService = new GraphFilteringService();
+    return filterService.applyFilters(completeGraph.nodes, completeGraph.links, {
+      expandedNodes,
+      hiddenDirectories: filters.hiddenDirectories,
+      hiddenFileTypes: filters.hiddenFileTypes,
+      visibleDomains: filters.visibleDomains
+    });
+  }, [completeGraph, expandedNodes, filters]);
+
+  // Enrich commitFileMap with folder-level churn counts using filtered graph nodes
+  const { nodeChurnMap, maxChurn } = useMemo(() => {
+    const map = new Map(commitFileMap);
 
     graphData.nodes.forEach(node => {
       if (node.type === 'folder') {
@@ -87,9 +118,9 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     for (const val of map.values()) {
       if (val > max) max = val;
     }
-    
+
     return { nodeChurnMap: map, maxChurn: max };
-  }, [repository?.commits, graphData.nodes]);
+  }, [commitFileMap, graphData.nodes]);
 
   // Keep annotationsRef in sync with the annotations state so the D3 tick
   // callback always has access to the latest list without a closure over stale state.
@@ -108,29 +139,6 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       (selectedCommit.fileChanges || []).map((fc: any) => [fc.path, fc.changeType || fc.type])
     );
   }, [selectedCommit]);
-
-  const { 
-    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters 
-  } = useGraphFilters();
-
-  const {
-    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
-  } = useGraphDrilldown();
-  
-  const completeGraph = useMemo(() => {
-    const analyzer = new GraphAnalyzer();
-    return analyzer.buildDependencyGraph(repository?.files || []);
-  }, [repository?.files]);
-
-  const graphData = useMemo(() => {
-    const filterService = new GraphFilteringService();
-    return filterService.applyFilters(completeGraph.nodes, completeGraph.links, {
-      expandedNodes,
-      hiddenDirectories: filters.hiddenDirectories,
-      hiddenFileTypes: filters.hiddenFileTypes,
-      visibleDomains: filters.visibleDomains
-    });
-  }, [completeGraph, expandedNodes, filters]);
 
   const exportGraph = async (format: "png" | "svg") => {
     if (!exportRef.current) return;
