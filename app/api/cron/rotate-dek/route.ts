@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rotateDek } from "@/lib/utils/envelopeEncryption";
+import {
+  isCronAuthorized,
+  validateAuthorizationHeader,
+} from "@/lib/utils/internalAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
-  const expected = `Bearer ${process.env.CRON_SECRET}`;
 
-  if (!authHeader || authHeader !== expected) {
+  // Use timing-safe comparison to prevent timing oracle attacks.
+  // isCronAuthorized allows a plain Bearer token for convenience, but
+  // for high-privilege operations like DEK rotation, enforce hashed token.
+  if (
+    !validateAuthorizationHeader(authHeader, process.env.CRON_SECRET) &&
+    !validateAuthorizationHeader(authHeader, process.env.ANALYSIS_RUNNER_SECRET)
+  ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
