@@ -4,6 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/middleware";
+import { sanitizeErrorMessage } from "@/lib/utils/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -23,6 +25,7 @@ interface SnapshotQueryResponse {
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
     const body: SnapshotRequest = await request.json();
 
     if (!body.repositoryId || !body.snapshot) {
@@ -48,11 +51,14 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error storing snapshot:", error);
+    const message = error?.status === 401
+      ? "Unauthorized"
+      : "Failed to store snapshot";
     return NextResponse.json(
-      { error: "Failed to store snapshot" },
-      { status: 500 }
+      { error: sanitizeErrorMessage(message) },
+      { status: error?.status || 500 }
     );
   }
 }
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    await requireAuth(request);
     const searchParams = request.nextUrl.searchParams;
     const repositoryId = searchParams.get("repositoryId");
     const days = parseInt(searchParams.get("days") || "30", 10);
@@ -89,11 +96,14 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error retrieving snapshots:", error);
+    const message = error?.status === 401
+      ? "Unauthorized"
+      : "Failed to retrieve snapshots";
     return NextResponse.json(
-      { error: "Failed to retrieve snapshots" },
-      { status: 500 }
+      { error: sanitizeErrorMessage(message) },
+      { status: error?.status || 500 }
     );
   }
 }
@@ -106,6 +116,7 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    await requireAuth(request);
     const searchParams = request.nextUrl.searchParams;
     const repositoryId = searchParams.get("repositoryId");
     const olderThanDays = parseInt(
@@ -131,11 +142,14 @@ export async function DELETE(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting snapshots:", error);
+    const message = error?.status === 401
+      ? "Unauthorized"
+      : "Failed to delete snapshots";
     return NextResponse.json(
-      { error: "Failed to delete snapshots" },
-      { status: 500 }
+      { error: sanitizeErrorMessage(message) },
+      { status: error?.status || 500 }
     );
   }
 }
