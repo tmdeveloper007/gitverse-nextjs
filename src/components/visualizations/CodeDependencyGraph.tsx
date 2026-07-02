@@ -31,6 +31,46 @@ interface CodeDependencyGraphProps {
   repository?: any;
 }
 
+interface GraphNode {
+  id: string;
+  path: string;
+  type: 'file' | 'folder' | string;
+  [key: string]: any;
+}
+
+interface GraphLink {
+  source: string | GraphNode;
+  target: string | GraphNode;
+  [key: string]: any;
+}
+
+interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
+/**
+ * Standalone helper — mirrors the filtering logic of GraphFilteringService.applyFilters.
+ * Extracted here so nodeChurnMap can call it without referencing graphData before
+ * it is declared, avoiding a TypeScript temporal dead zone error.
+ */
+function getFilteredNodes(
+  nodes: GraphNode[],
+  expandedNodes: Set<string>,
+  hiddenDirectories: Set<string>,
+  hiddenFileTypes: Set<string>,
+  visibleDomains: Set<string>,
+): GraphNode[] {
+  const service = new GraphFilteringService();
+  const result = service.applyFilters(nodes, [], {
+    expandedNodes,
+    hiddenDirectories,
+    hiddenFileTypes,
+    visibleDomains,
+  });
+  return result.nodes;
+}
+
 export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -57,7 +97,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const { nodeChurnMap, maxChurn } = useMemo(() => {
     const map = new Map<string, number>();
     if (!repository?.commits) return { nodeChurnMap: map, maxChurn: 0 };
-    
+
     repository.commits.forEach((c: any) => {
       if (c.fileChanges) {
         c.fileChanges.forEach((fc: any) => {
@@ -69,7 +109,17 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       }
     });
 
-    graphData.nodes.forEach(node => {
+    // Use the standalone helper so TypeScript can resolve the reference
+    // without hitting a temporal dead zone on graphData.
+    const filteredNodes = getFilteredNodes(
+      completeGraph.nodes,
+      expandedNodes,
+      filters.hiddenDirectories,
+      filters.hiddenFileTypes,
+      filters.visibleDomains,
+    );
+
+    filteredNodes.forEach(node => {
       if (node.type === 'folder') {
         let count = 0;
         for (const [filePath, fileCount] of map.entries()) {
@@ -79,7 +129,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
         }
         map.set(node.id, count);
       } else {
-         map.set(node.id, map.get(node.path) || 0);
+        map.set(node.id, map.get(node.path) || 0);
       }
     });
 
@@ -87,9 +137,16 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     for (const val of map.values()) {
       if (val > max) max = val;
     }
-    
+
     return { nodeChurnMap: map, maxChurn: max };
-  }, [repository?.commits, graphData.nodes]);
+  }, [
+    repository?.commits,
+    completeGraph.nodes,
+    expandedNodes,
+    filters.hiddenDirectories,
+    filters.hiddenFileTypes,
+    filters.visibleDomains,
+  ]);
 
   // Keep annotationsRef in sync with the annotations state so the D3 tick
   // callback always has access to the latest list without a closure over stale state.
