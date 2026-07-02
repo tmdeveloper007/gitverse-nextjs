@@ -112,8 +112,6 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       }
     });
 
-    // Use the standalone helper so TypeScript can resolve the reference
-    // without hitting a temporal dead zone on graphData.
     const filteredNodes = getFilteredNodes(
       completeGraph.nodes,
       expandedNodes,
@@ -144,11 +142,9 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     return { nodeChurnMap: map, maxChurn: max };
   }, [
     repository?.commits,
-    completeGraph.nodes,
+    completeGraph,
     expandedNodes,
-    filters.hiddenDirectories,
-    filters.hiddenFileTypes,
-    filters.visibleDomains,
+    filters,
   ]);
 
   // Keep annotationsRef in sync with the annotations state so the D3 tick
