@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import * as htmlToImage from "html-to-image";
 import * as d3 from "d3";
 import { Card } from "@/components/ui";
-import { GraphAnalyzer } from "@/utils/graphAnalyzer";
+import { GraphAnalyzer, GraphNode, GraphLink } from "@/utils/graphAnalyzer";
 import { GraphFilteringService } from "@/services/graphFilteringService";
 import { MapControls } from "./MapControls";
 import { toast } from "sonner";
@@ -31,18 +31,7 @@ interface CodeDependencyGraphProps {
   repository?: any;
 }
 
-interface GraphNode {
-  id: string;
-  path: string;
-  type: 'file' | 'folder' | string;
-  [key: string]: any;
-}
 
-interface GraphLink {
-  source: string | GraphNode;
-  target: string | GraphNode;
-  [key: string]: any;
-}
 
 interface GraphData {
   nodes: GraphNode[];
@@ -57,9 +46,9 @@ interface GraphData {
 function getFilteredNodes(
   nodes: GraphNode[],
   expandedNodes: Set<string>,
-  hiddenDirectories: Set<string>,
-  hiddenFileTypes: Set<string>,
-  visibleDomains: Set<string>,
+  hiddenDirectories: string[],
+  hiddenFileTypes: string[],
+  visibleDomains: string[],
 ): GraphNode[] {
   const service = new GraphFilteringService();
   const result = service.applyFilters(nodes, [], {
@@ -93,6 +82,20 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [heatmapMode, setHeatmapMode] = useState(false);
+
+  // Declare graph data first so nodeChurnMap can reference them without TDZ.
+  const completeGraph = useMemo(() => {
+    const analyzer = new GraphAnalyzer();
+    return analyzer.buildDependencyGraph(repository?.files || []);
+  }, [repository?.files]);
+
+  const {
+    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters
+  } = useGraphFilters();
+
+  const {
+    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
+  } = useGraphDrilldown();
 
   const { nodeChurnMap, maxChurn } = useMemo(() => {
     const map = new Map<string, number>();
@@ -165,19 +168,6 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       (selectedCommit.fileChanges || []).map((fc: any) => [fc.path, fc.changeType || fc.type])
     );
   }, [selectedCommit]);
-
-  const { 
-    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters 
-  } = useGraphFilters();
-
-  const {
-    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
-  } = useGraphDrilldown();
-  
-  const completeGraph = useMemo(() => {
-    const analyzer = new GraphAnalyzer();
-    return analyzer.buildDependencyGraph(repository?.files || []);
-  }, [repository?.files]);
 
   const graphData = useMemo(() => {
     const filterService = new GraphFilteringService();
