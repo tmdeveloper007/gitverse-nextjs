@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { buildApiUrl } from "@/services/apiConfig";
 import axios from "axios";
 import { toast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui";
 
 export function RecentReposList() {
   const router = useRouter();
@@ -22,8 +23,25 @@ export function RecentReposList() {
   // Track loading state for each card to provide feedback during network lookups
   const [navigatingUrl, setNavigatingUrl] = useState<string | null>(null);
 
-  // Return null if localStorage is not loaded yet or no repos exist
-  if (!isLoaded || repos.length === 0) {
+  // Show skeleton while localStorage is initializing to prevent layout shift
+  if (!isLoaded) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-3 p-3 border rounded-lg">
+            <Skeleton className="h-8 w-8 rounded" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <Skeleton className="h-8 w-8 rounded" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (repos.length === 0) {
     return null;
   }
 
