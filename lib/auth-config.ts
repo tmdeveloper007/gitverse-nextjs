@@ -372,10 +372,11 @@ export const authOptions: NextAuthOptions = {
           GoogleProvider({
             clientId: googleClientId!,
             clientSecret: googleClientSecret!,
-            // If the PKCE code_verifier cookie is lost/mismatched (common in some dev setups),
-            // Google returns invalid_grant at the token exchange step.
-            // Using state-only is sufficient for local dev and avoids that failure mode.
-            checks: ["state"],
+            // Use PKCE (proof key for code exchange) for CSRF protection.
+            // Unlike the state-based flow, PKCE binds each auth request to its own
+            // code_verifier — no shared state cookie that can be overwritten by
+            // concurrent auth flows in other tabs.
+            checks: ["pkce"],
             allowDangerousEmailAccountLinking: true,
           }),
         ]
@@ -390,6 +391,9 @@ export const authOptions: NextAuthOptions = {
                 scope: "read:user user:email repo",
               },
             },
+            // Use PKCE for CSRF protection — each auth request has its own
+            // code_verifier, so concurrent flows in multiple tabs do not conflict.
+            checks: ["pkce"],
             allowDangerousEmailAccountLinking: true,
           }),
         ]
