@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "No GitHub token or GitHub App repos found in DB. If you installed the app but weren’t redirected back, set the GitHub App Setup URL to /api/integrations/github/app/callback, or use the Sync Installation option in Contribute.",
+            "No GitHub token or GitHub App repos found in DB. If you installed the app but weren't redirected back, set the GitHub App Setup URL to /api/integrations/github/app/callback, or use the Sync Installation option in Contribute.",
+          code: "GITHUB_APP_NOT_INSTALLED",
         },
         { status: 400 },
       );
