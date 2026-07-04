@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isHttpError, sanitizeError } from "@/lib/middleware";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,8 @@ interface SnapshotQueryResponse {
  */
 export async function POST(request: NextRequest) {
   try {
+    await requireAuth(request);
+
     const body: SnapshotRequest = await request.json();
 
     if (!body.repositoryId || !body.snapshot) {
@@ -54,6 +57,12 @@ export async function POST(request: NextRequest) {
       { error: "Failed to store snapshot" },
       { status: 500 }
     );
+  } catch (error) {
+    console.error("Error storing snapshot:", sanitizeError(error));
+    if (isHttpError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
 
@@ -66,6 +75,8 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    await requireAuth(request);
+
     const searchParams = request.nextUrl.searchParams;
     const repositoryId = searchParams.get("repositoryId");
     const days = parseInt(searchParams.get("days") || "30", 10);
@@ -95,6 +106,12 @@ export async function GET(request: NextRequest) {
       { error: "Failed to retrieve snapshots" },
       { status: 500 }
     );
+  } catch (error) {
+    console.error("Error retrieving snapshots:", sanitizeError(error));
+    if (isHttpError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
 
@@ -106,6 +123,8 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    await requireAuth(request);
+
     const searchParams = request.nextUrl.searchParams;
     const repositoryId = searchParams.get("repositoryId");
     const olderThanDays = parseInt(
@@ -132,11 +151,11 @@ export async function DELETE(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Error deleting snapshots:", error);
-    return NextResponse.json(
-      { error: "Failed to delete snapshots" },
-      { status: 500 }
-    );
+    console.error("Error deleting snapshots:", sanitizeError(error));
+    if (isHttpError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
 
