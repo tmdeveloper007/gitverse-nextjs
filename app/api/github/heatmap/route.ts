@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isHttpError, sanitizeError } from "@/lib/middleware";
 
 const GITHUB_GRAPHQL = "https://api.github.com/graphql";
 
 export async function GET(req: NextRequest) {
+  try {
+    await requireAuth(req);
+  } catch (error) {
+    if (isHttpError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const username = searchParams.get("username");
 
