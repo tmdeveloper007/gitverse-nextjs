@@ -52,17 +52,11 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error storing snapshot:", error);
-    return NextResponse.json(
-      { error: "Failed to store snapshot" },
-      { status: 500 }
-    );
-  } catch (error) {
     console.error("Error storing snapshot:", sanitizeError(error));
     if (isHttpError(error)) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Failed to store snapshot" }, { status: 500 });
   }
 }
 
@@ -101,17 +95,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
-    console.error("Error retrieving snapshots:", error);
-    return NextResponse.json(
-      { error: "Failed to retrieve snapshots" },
-      { status: 500 }
-    );
-  } catch (error) {
     console.error("Error retrieving snapshots:", sanitizeError(error));
     if (isHttpError(error)) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Failed to retrieve snapshots" }, { status: 500 });
   }
 }
 
