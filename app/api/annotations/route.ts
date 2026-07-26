@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/middleware";
 import { prisma } from "@/lib/prisma";
 import { broadcastAnnotationEvent } from "@/lib/services/annotationSync";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/middleware/rateLimit";
+import { RepositoryAccess } from "../../../../services/authz/repository-access";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +13,15 @@ export async function GET(request: NextRequest) {
 
     if (!repositoryId) {
       return NextResponse.json({ error: "repositoryId is required" }, { status: 400 });
+    }
+
+    // Enforce repository access so only authorized users can read annotations
+    const access = await RepositoryAccess.checkAccess(parseInt(repositoryId), user.userId);
+    if (!access.allowed) {
+      if (access.repositoryExists === false) {
+        return NextResponse.json({ error: "Repository not found" }, { status: 404 });
+      }
+      return NextResponse.json({ error: "Forbidden: Access denied" }, { status: 403 });
     }
 
     const annotations = await prisma.mapAnnotation.findMany({

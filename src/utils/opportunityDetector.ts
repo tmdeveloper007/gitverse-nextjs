@@ -225,6 +225,125 @@ export const detectUIConsistencyIssues = (files: RepositoryFile[]): OpportunityS
   return opportunities;
 };
 
+// Detect performance bottlenecks and missing optimizations
+export const detectPerformanceIssues = (files: RepositoryFile[]): OpportunitySuggestion[] => {
+  const opportunities: OpportunitySuggestion[] = [];
+
+  const sourceFiles = files.filter((f) =>
+    /\.(tsx?|jsx?|py|go|rs|java)$/.test(f.path || "")
+  );
+
+  const blockingPatterns = [
+    { pattern: /readFileSync|writeFileSync|readSync|writeSync/, label: "synchronous file I/O" },
+    { pattern: /execSync|spawnSync|execFileSync/, label: "synchronous subprocess execution" },
+  ];
+
+  const blockingFiles: string[] = [];
+  for (const file of sourceFiles) {
+    const content = (file as any).content || "";
+    for (const { pattern, label } of blockingPatterns) {
+      if (pattern.test(content)) {
+        blockingFiles.push(file.path || "");
+        break;
+      }
+    }
+  }
+
+  if (blockingFiles.length > 0) {
+    opportunities.push({
+      type: "performance" as OpportunityType,
+      title: "Replace Synchronous Blocking Operations",
+      description: `Found ${blockingFiles.length} file(s) using synchronous blocking operations (e.g., readFileSync, execSync) that can block the event loop and degrade performance under load.`,
+      affectedFiles: blockingFiles.slice(0, 3),
+      reason:
+        "Synchronous operations block the event loop, reducing throughput and responsiveness. Replacing them with async equivalents improves concurrency and scalability.",
+      estimatedEffort: "medium",
+      difficulty: "Intermediate",
+    });
+  }
+
+  // Detect missing memoization opportunities in React components
+  const reactFiles = files.filter((f) => /\.tsx?$/.test(f.path || "") && (f.path?.includes("component") || f.path?.includes("Component")));
+  const filesWithExpensiveLogic = [];
+  for (const file of reactFiles) {
+    const content = (file as any).content || "";
+    // Check for computations inside JSX that could be memoized
+    if (/(map|filter|reduce|sort)\([^)]*\)\s*\)/.test(content) && !content.includes("useMemo") && !content.includes("memo(")) {
+      filesWithExpensiveLogic.push(file.path || "");
+    }
+  }
+
+  if (filesWithExpensiveLogic.length > 0) {
+    opportunities.push({
+      type: "performance" as OpportunityType,
+      title: "Add Memoization for Expensive Computations",
+      description: `Found ${filesWithExpensiveLogic.length} React component(s) with array transformations inside JSX that could benefit from useMemo or memo().`,
+      affectedFiles: filesWithExpensiveLogic.slice(0, 3),
+      reason:
+        "Without memoization, expensive computations run on every render, causing unnecessary CPU usage and potential jank in the UI.",
+      estimatedEffort: "low",
+      difficulty: "Beginner",
+    });
+  }
+
+  return opportunities;
+};
+
+// Detect accessibility gaps in UI components
+export const detectAccessibilityGaps = (files: RepositoryFile[]): OpportunitySuggestion[] => {
+  const opportunities: OpportunitySuggestion[] = [];
+
+  const uiFiles = files.filter((f) => /\.(tsx|jsx)$/.test(f.path || "") &&
+    (f.path?.includes("component") || f.path?.includes("ui/") || f.path?.includes("Component")));
+
+  const missingAlt: string[] = [];
+  const missingAria: string[] = [];
+
+  for (const file of uiFiles) {
+    const content = (file as any).content || "";
+
+    // Check for <img> tags missing alt attribute
+    if (/<img[^>]*>/.test(content) && !/<img[^>]*alt=/.test(content)) {
+      missingAlt.push(file.path || "");
+    }
+
+    // Check for interactive elements without aria attributes
+    const hasInteractive = /<button|<div[^>]*onClick|<a[^>]*onClick/.test(content);
+    const hasAria = /aria-|role=/.test(content);
+    if (hasInteractive && !hasAria) {
+      missingAria.push(file.path || "");
+    }
+  }
+
+  if (missingAlt.length > 0) {
+    opportunities.push({
+      type: "accessibility" as OpportunityType,
+      title: "Add Alt Text to Images",
+      description: `Found ${missingAlt.length} UI file(s) with <img> tags missing alt attributes. Images without alt text are inaccessible to screen reader users.`,
+      affectedFiles: missingAlt.slice(0, 3),
+      reason:
+        "Alt text is required for accessibility. Screen readers rely on alt text to describe images to visually impaired users. WCAG 2.1 Success Criterion 1.1.1 requires all non-text content to have text alternatives.",
+      estimatedEffort: "low",
+      difficulty: "Beginner",
+    });
+  }
+
+  if (missingAria.length > 0) {
+    opportunities.push({
+      type: "accessibility" as OpportunityType,
+      title: "Add ARIA Attributes to Interactive Elements",
+      description: `Found ${missingAria.length} UI file(s) with interactive elements (buttons, clickable divs) missing aria-* or role attributes, making them inaccessible to assistive technologies.`,
+      affectedFiles: missingAria.slice(0, 3),
+      reason:
+        "Interactive elements without ARIA attributes are not properly announced by screen readers. Adding aria-labels and roles makes components accessible per WCAG 2.1 Success Criterion 4.1.2.",
+      estimatedEffort: "medium",
+      difficulty: "Beginner",
+    });
+  }
+
+  return opportunities;
+};
+
 // Main opportunity detector
 export const detectOpportunities = (files: RepositoryFile[]): OpportunitySuggestion[] => {
   if (!files || files.length === 0) return [];
@@ -236,6 +355,8 @@ export const detectOpportunities = (files: RepositoryFile[]): OpportunitySuggest
     ...detectDocumentationGaps(files),
     ...detectTypeSafetyGaps(files),
     ...detectUIConsistencyIssues(files),
+    ...detectPerformanceIssues(files),
+    ...detectAccessibilityGaps(files),
   ];
 
   return opportunities;
