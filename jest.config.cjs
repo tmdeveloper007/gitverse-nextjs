@@ -29,6 +29,9 @@ const customJestConfig = {
     '<rootDir>/.next/',
     '<rootDir>/dist-worker/',
     '<rootDir>/node_modules/',
+    // Vitest test files use vi.mock/vi.fn globals -- skip so jest does not
+    // pick them up. These run under vitest via the test:vitest npm script.
+    '<rootDir>/app/',
   ],
 };
 

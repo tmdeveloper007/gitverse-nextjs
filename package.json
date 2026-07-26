@@ -30,7 +30,8 @@
     "test": "jest --config jest.config.cjs --forceExit",
     "db:seed": "tsx prisma/seed.ts",
     "kms:init": "tsx scripts/kms-init.ts",
-    "rotate:dek": "tsx scripts/rotate-dek.ts"
+    "rotate:dek": "tsx scripts/rotate-dek.ts",
+    "test:vitest": "vitest run"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
